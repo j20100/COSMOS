@@ -14,27 +14,29 @@ import numpy as np
 import theano.tensor as T
 np.random.seed(1337) # for reproducibility
 
-from keras.datasets import mnist
 from keras.layers.noise import GaussianNoise
 import keras.models as models
-from keras.layers.core import Layer, Dense, Dropout, Activation, Flatten, Reshape, Merge, Permute
-from keras.layers.convolutional import Convolution2D, MaxPooling2D, UpSampling2D, ZeroPadding2D
+from keras.layers.core import Layer, Dense, Dropout, Activation, Flatten, Reshape, Permute
+from keras.layers.convolutional import Conv2D, MaxPooling2D, UpSampling2D, ZeroPadding2D
 from keras.layers.normalization import BatchNormalization
-from keras.utils import np_utils
-from keras.regularizers import ActivityRegularizer
-from keras.utils.visualize_util import plot
 
 from keras import backend as K
-K.set_image_dim_ordering('th')
+K.set_image_data_format("channels_first")
 
 import cv2
 import numpy as np
 
 path = './CamVid/'
-data_shape = 360*480
+
+img_channels = 3
+img_rows = 360
+img_cols = 480
+data_shape = img_rows*img_cols
+
+epochs = 100
+batch_size = 6
 
 def normalized(rgb):
-    #return rgb/255.0
     norm=np.zeros((rgb.shape[0], rgb.shape[1], 3),np.float32)
 
     b=rgb[:,:,0]
@@ -102,29 +104,28 @@ def create_encoding_layers():
     pad = 1
     pool_size = 2
     return [
-        ZeroPadding2D(padding=(pad,pad)),
-        Convolution2D(filter_size, kernel, kernel, border_mode='valid'),
+        ZeroPadding2D(padding=(pad,pad), input_shape=(img_channels, img_rows, img_cols)),
+        Conv2D(filter_size, kernel, padding='valid'),
         BatchNormalization(),
         Activation('relu'),
         MaxPooling2D(pool_size=(pool_size, pool_size)),
 
         ZeroPadding2D(padding=(pad,pad)),
-        Convolution2D(128, kernel, kernel, border_mode='valid'),
+        Conv2D(128, kernel, padding='valid'),
         BatchNormalization(),
         Activation('relu'),
         MaxPooling2D(pool_size=(pool_size, pool_size)),
 
         ZeroPadding2D(padding=(pad,pad)),
-        Convolution2D(256, kernel, kernel, border_mode='valid'),
+        Conv2D(256, kernel, padding='valid'),
         BatchNormalization(),
         Activation('relu'),
         MaxPooling2D(pool_size=(pool_size, pool_size)),
 
         ZeroPadding2D(padding=(pad,pad)),
-        Convolution2D(512, kernel, kernel, border_mode='valid'),
+        Conv2D(512, kernel, padding='valid'),
         BatchNormalization(),
-        Activation('relu'),
-        #MaxPooling2D(pool_size=(pool_size, pool_size)),
+        Activation('relu')
     ]
 
 def create_decoding_layers():
@@ -133,70 +134,64 @@ def create_decoding_layers():
     pad = 1
     pool_size = 2
     return[
-        #UpSampling2D(size=(pool_size,pool_size)),
         ZeroPadding2D(padding=(pad,pad)),
-        Convolution2D(512, kernel, kernel, border_mode='valid'),
+        Conv2D(512, kernel, padding='valid'),
         BatchNormalization(),
 
         UpSampling2D(size=(pool_size,pool_size)),
         ZeroPadding2D(padding=(pad,pad)),
-        Convolution2D(256, kernel, kernel, border_mode='valid'),
+        Conv2D(256, kernel, padding='valid'),
         BatchNormalization(),
 
         UpSampling2D(size=(pool_size,pool_size)),
         ZeroPadding2D(padding=(pad,pad)),
-        Convolution2D(128, kernel, kernel, border_mode='valid'),
+        Conv2D(128, kernel, padding='valid'),
         BatchNormalization(),
 
         UpSampling2D(size=(pool_size,pool_size)),
         ZeroPadding2D(padding=(pad,pad)),
-        Convolution2D(filter_size, kernel, kernel, border_mode='valid'),
-        BatchNormalization(),
+        Conv2D(filter_size, kernel, padding='valid'),
+        BatchNormalization()
     ]
 
 print("------------CREATING NETWORK--------------")
-autoencoder = models.Sequential()
-# Add a noise layer to get a denoising autoencoder. This helps avoid overfitting
-autoencoder.add(Layer(input_shape=(3, 360, 480)))
+network = models.Sequential()
+# Add a noise layer to get a denoising network. This helps avoid overfitting
+#network.add(Layer(input_shape=(3, 360, 480)))
 
-#autoencoder.add(GaussianNoise(sigma=0.3))
-autoencoder.encoding_layers = create_encoding_layers()
-autoencoder.decoding_layers = create_decoding_layers()
-for l in autoencoder.encoding_layers:
-    autoencoder.add(l)
-for l in autoencoder.decoding_layers:
-    autoencoder.add(l)
+#network.add(GaussianNoise(stddev=0.3))
+network.encoding_layers = create_encoding_layers()
+network.decoding_layers = create_decoding_layers()
+for l in network.encoding_layers:
+    network.add(l)
+for l in network.decoding_layers:
+    network.add(l)
 
-autoencoder.add(Convolution2D(12, 1, 1, border_mode='valid',))
-#import ipdb; ipdb.set_trace()
-autoencoder.add(Reshape((12,data_shape)))
-autoencoder.add(Permute((2, 1)))
-autoencoder.add(Activation('softmax'))
+network.add(Conv2D(12, 1, padding='valid',))
+network.add(Reshape((12, data_shape)))
+network.add(Permute((2, 1)))
+network.add(Activation('softmax'))
 from keras.optimizers import SGD
 optimizer = SGD(lr=0.01, momentum=0.8, decay=0., nesterov=False)
-autoencoder.compile(loss="categorical_crossentropy", optimizer=optimizer)
+network.compile(loss="categorical_crossentropy", optimizer=optimizer)
 
-#current_dir = os.path.dirname(os.path.realpath(__file__))
-#model_path = os.path.join(current_dir, "autoencoder.png")
-#plot(model_path, to_file=model_path, show_shapes=True)
 
-nb_epoch = 100
-batch_size = 6
+
 
 #For training uncomment
 
 #print("------------TRAINING NETWORK--------------")
 
-#history = autoencoder.fit(train_data, train_label, batch_size=batch_size, nb_epoch=nb_epoch,
+#history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs,
 #                    show_accuracy=True, verbose=1, class_weight=class_weighting )#, validation_data=(X_test, X_test))
 
-#autoencoder.save_weights('model_weight_ep100.hdf5')
+#network.save_weights('model_weight_ep100.hdf5')
 
 #For deployement
 
 print("------------DEPLOYING NETWORK--------------")
 
-autoencoder.load_weights('model_weight_ep100.hdf5')
+network.load_weights('model_weight_ep100.hdf5')
 
 import matplotlib.pyplot as plt
 #matplotlib inline
@@ -232,7 +227,7 @@ def visualize(temp):
     rgb[:,:,1] = (g)#[:,:,1]
     rgb[:,:,2] = (b)#[:,:,2]
     return rgb
-'''
+
 # Code for image analysis
 import os
 img = cv2.imread(os.getcwd() + '/CamVid/train/0016E5_07650.png')
@@ -242,7 +237,7 @@ img = cv2.resize(img, (480, 360))
 img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
 img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
 
-output = autoencoder.predict_proba(np.array(img_prep)[1:2])
+output = network.predict_proba(np.array(img_prep)[1:2])
 pred = visualize(np.argmax(output[0],axis=1).reshape((360,480)))
 
 cv2.imshow('Prediction', pred)
@@ -262,7 +257,7 @@ def process_image(image):
     vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
     vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
 
-    output = autoencoder.predict_proba(np.array(vid_img_prep)[1:2])
+    output = network.predict_proba(np.array(vid_img_prep)[1:2])
     pred = visualize(np.argmax(output[0],axis=1).reshape((360,480)))
 
     #print(image)
@@ -286,7 +281,7 @@ pred_video = video.fl_image(process_image)
 pred_video.write_videofile('pred_video.avi', codec='rawvideo', audio=False)
 
 # Code for live stream video analysis
-'''
+
 while(True):
     cap = cv2.VideoCapture(0)
     ret, frame = cap.read()
@@ -297,7 +292,7 @@ while(True):
     vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
     vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
     cap.release()
-    output = autoencoder.predict_proba(np.array(vid_img_prep)[1:2])
+    output = network.predict_proba(np.array(vid_img_prep)[1:2])
     pred = visualize(np.argmax(output[0],axis=1).reshape((360,480)))
     cv2.imshow('Prediction', pred)
     cv2.imshow('Original', vid_img)
