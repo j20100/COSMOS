@@ -121,7 +121,7 @@ def class_weighting():
 #Class weighting function call
 #label_weight = class_weighting()
 
-#Data generator
+#Data generator for the synthia dataset
 def prep_data():
     while 1:
         with open(path+'ALL.txt') as f:
@@ -143,6 +143,24 @@ def prep_data():
         nb_data=train_data_array.shape[0]
         yield(train_data_array, np.reshape(train_label_array,(nb_data,data_shape,12)))
         f.close()
+
+
+#Prep data for the camvid dataset
+"""
+def prep_data():
+    train_data = []
+    train_label = []
+
+    with open(path+'train.txt') as f:
+        txt = f.readlines()
+        txt = [line.split(' ') for line in txt]
+    for i in range(len(txt)):
+        train_data.append(np.rollaxis(normalized(cv2.imread(os.getcwd() + txt[i][0][7:])),2))
+        train_label.append(binarylab(cv2.imread(os.getcwd() + txt[i][1][7:][:-1])[:,:,0]))
+    return np.array(train_data), np.array(train_label)
+"""
+
+
 
 #Unpooling layer
 class UnPooling2D(Layer):
