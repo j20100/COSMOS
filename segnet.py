@@ -5,7 +5,7 @@ import time
 
 # Comment to use tensorflow
 os.environ['KERAS_BACKEND'] = 'theano'
-os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu0,floatX=float32,optimizer=fast_compile'
+os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu1,floatX=float32,optimizer=fast_compile'
 
 print("------------INITIALIZE DEPENDENCIES--------------")
 
@@ -31,7 +31,7 @@ import numpy as np
 
 #Variables definitions
 """
-Tested configuration : 400x400:bs12, 600x600:bs5 
+Tested configuration : 400x400:bs12, 600x600:bs5
 """
 path = './SYNTHIA_RAND_CVPR16/'
 img_channels = 3
@@ -39,13 +39,13 @@ img_original_rows=720
 img_original_cols=960
 img_rows = 600
 img_cols = 600
-epochs = 10
+epochs = 100
 batch_size = 5
-steps_per_epoch = 100
+steps_per_epoch = 1000
 
 #Model save variables
-save_model_name='model_ep10_bs12_st100_res600_ncw.hdf5'
-run_model_name='model_ep50_bs5_st100_res600_ncw.hdf5'
+save_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
+run_model_name='model_ep100_bs12_st100_res400_ncw.hdf5'
 
 
 #Class wieght for dataset
@@ -265,29 +265,28 @@ print("------------DEPLOYING NETWORK--------------")
 network.load_weights(run_model_name)
 import matplotlib.pyplot as plt
 #matplotlib inline
-Sky = [255,255,255]
-Building = [255,0,0]
-Pole = [255,255,0]
-Road_marking = [125,0,255]
-Road = [0,255,0]
-Pavement = [0,255,255]
-Tree = [255,0,255]
-SignSymbol = [192,128,128]
-Fence = [64,64,128]
-Car = [0,0,255]
-Pedestrian = [125,125,125]
-Bicyclist = [125,0,0]
-Unlabelled = [0,0,0]
+#BGR
+void =	[0,0,0] #Black
+Sky = [255,255,255] # White
+Building = [0,0,255] # Red
+Road = [255,0,0] # Blue
+Sidewalk = [0,255,0] # Green
+Fence = [255,0,255] # Violet
+Vegetation = [255,255,0] # Yellow
+Pole = [0,255,255]
+Car = [128,0,64]
+Sign = [128,128,192]
+Pedestrian = [0,64,64]
+Cyclist = [192,128,0]
 
-label_colours = np.array([Sky, Building, Pole, Road, Pavement,
-                          Tree, SignSymbol, Fence, Car, Pedestrian, Bicyclist, Unlabelled])
+label_colours = np.array([void, Sky, Building, Road, Sidewalk, Fence, Vegetation, Pole, Car, Sign, Pedestrian, Cyclist])
 
 #Visualizing function
 def visualize(temp):
     r = temp.copy()
     g = temp.copy()
     b = temp.copy()
-    for l in range(0,11):
+    for l in range(len(label_colours)):
         r[temp==l]=label_colours[l,0]
         g[temp==l]=label_colours[l,1]
         b[temp==l]=label_colours[l,2]
@@ -299,17 +298,17 @@ def visualize(temp):
     return rgb
 """
 
-"""
-#Image analysis
 
+#Image analysis
+"""
 import os
-img = cv2.imread(os.getcwd() + '/SYNTHIA_RAND_CVPR16/RGB/ap_000_01-11-2015_19-20-57_000003_0_Rand_1.png')
+img = cv2.imread(os.getcwd() + '/SYNTHIA_RAND_CVPR16/RGB/ap_000_01-11-2015_19-20-57_000001_0_Rand_1.png')
 img_prep = []
-img = cv2.resize(img, (600, 600))
+img = cv2.resize(img, (img_rows,img_cols))
 img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
 img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
 output = network.predict_proba(np.array(img_prep)[1:2])
-pred = visualize(np.argmax(output[0],axis=1).reshape((600,600)))
+pred = visualize(np.argmax(output[0],axis=1).reshape((img_rows,img_cols)))
 cv2.imshow('Prediction', pred)
 cv2.imshow('Original', img)
 cv2.waitKey(0)
