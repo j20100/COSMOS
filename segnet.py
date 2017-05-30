@@ -31,21 +31,21 @@ import numpy as np
 
 #Variables definitions
 """
-Tested configuration : 400x400:bs12, 600x600:bs5
+Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
 """
 path = './SYNTHIA_RAND_CVPR16/'
 img_channels = 3
 img_original_rows=720
 img_original_cols=960
-img_rows = 600
-img_cols = 600
+img_rows = 720
+img_cols = 960
 epochs = 100
-batch_size = 5
+batch_size = 2
 steps_per_epoch = 1000
 
 #Model save variables
-save_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
-run_model_name='model_ep100_bs12_st100_res400_ncw.hdf5'
+save_model_name='model_ep100_bs3_st1000_res900_cw.hdf5'
+run_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
 
 
 #Class wieght for dataset
@@ -160,7 +160,10 @@ def prep_data():
     return np.array(train_data), np.array(train_label)
 """
 
+#Prep for hybrid dataset
+"""
 
+"""
 
 #Unpooling layer
 class UnPooling2D(Layer):
@@ -320,7 +323,7 @@ def visualize(temp):
 #Image analysis
 """
 import os
-img = cv2.imread(os.getcwd() + '/SYNTHIA_RAND_CVPR16/RGB/ap_000_01-11-2015_19-20-57_000001_0_Rand_1.png')
+img = cv2.imread(os.getcwd() + '/SYNTHIA_RAND_CVPR16/RGB/ap_000_01-11-2015_19-20-57_000005_0_Rand_1.png')
 img_prep = []
 img = cv2.resize(img, (img_rows,img_cols))
 img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
