@@ -5,7 +5,7 @@ import time
 
 # Comment to use tensorflow
 os.environ['KERAS_BACKEND'] = 'theano'
-os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu1,floatX=float32,optimizer=fast_compile'
+os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu0,floatX=float32,optimizer=fast_compile'
 
 print("------------INITIALIZE DEPENDENCIES--------------")
 
@@ -28,47 +28,50 @@ K.set_image_data_format("channels_first")
 
 import cv2
 import numpy as np
+from moviepy.editor import VideoFileClip
 
 #Variables definitions
-"""
-Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
-"""
-path = './SYNTHIA_RAND_CVPR16/'
-img_channels = 3
-img_original_rows=720
-img_original_cols=960
-img_rows = 720
-img_cols = 960
-epochs = 100
-batch_size = 2
-steps_per_epoch = 1000
 
-#Model save variables
-save_model_name='model_ep100_bs3_st1000_res900_cw.hdf5'
-run_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
+def init_network():
+    """
+    Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
+    """
+    path = './SYNTHIA_RAND_CVPR16/'
+    img_channels = 3
+    img_original_rows=720
+    img_original_cols=960
+    img_rows = 600
+    img_cols = 600
+    epochs = 100
+    batch_size = 2
+    steps_per_epoch = 1000
+
+    #Model save variables
+    save_model_name='model_ep100_bs3_st1000_res900_cw.hdf5'
+    run_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
 
 
-#Class wieght for dataset
-class_pixel = [1.11849828e+08, 3.62664219e+08, 3.19578306e+09, 2.57847955e+09, 1.21284747e+09, 2.30973570e+07, 1.77853424e+08, 1.08091678e+08, 6.83247417e+08, 2.65943380e+07, 2.77407453e+08, 5.09002610e+08]
-dataset_nb = 13407
-class_freq = np.zeros(len(class_pixel))
+    #Class wieght for dataset
+    class_pixel = [1.11849828e+08, 3.62664219e+08, 3.19578306e+09, 2.57847955e+09, 1.21284747e+09, 2.30973570e+07, 1.77853424e+08, 1.08091678e+08, 6.83247417e+08, 2.65943380e+07, 2.77407453e+08, 5.09002610e+08]
+    dataset_nb = 13407
+    class_freq = np.zeros(len(class_pixel))
 
-for i in range(len(class_pixel)):
-    class_freq[i] = class_pixel[i] / (dataset_nb*img_original_rows*img_original_cols)
+    for i in range(len(class_pixel)):
+        class_freq[i] = class_pixel[i] / (dataset_nb*img_original_rows*img_original_cols)
 
-class_weight = np.zeros(len(class_pixel))
-for i in range(len(class_pixel)):
-    class_weight[i] = np.median(class_freq) / class_freq[i]
+    class_weight = np.zeros(len(class_pixel))
+    for i in range(len(class_pixel)):
+        class_weight[i] = np.median(class_freq) / class_freq[i]
 
-#class_weighting = {0:class_weight[0] ,1:class_weight[1] ,2:class_weight[2] ,3:class_weight[3] ,4:class_weight[4] ,5:class_weight[5] ,6:class_weight[6] ,7:class_weight[7] ,8:class_weight[8] ,9:class_weight[9] ,10:class_weight[10] ,11:class_weight[11]}
-#print(class_weighting)
+    #class_weighting = {0:class_weight[0] ,1:class_weight[1] ,2:class_weight[2] ,3:class_weight[3] ,4:class_weight[4] ,5:class_weight[5] ,6:class_weight[6] ,7:class_weight[7] ,8:class_weight[8] ,9:class_weight[9] ,10:class_weight[10] ,11:class_weight[11]}
+    #print(class_weighting)
 
-#Dynamic variables
-img_rows_low = (img_original_rows-img_rows)/2
-img_rows_high = img_original_rows-(img_original_rows-img_rows)/2
-img_cols_low = (img_original_cols-img_cols)/2
-img_cols_high = img_original_cols-(img_original_cols-img_cols)/2
-data_shape = img_rows*img_cols
+    #Dynamic variables
+    img_rows_low = (img_original_rows-img_rows)/2
+    img_rows_high = img_original_rows-(img_original_rows-img_rows)/2
+    img_cols_low = (img_original_cols-img_cols)/2
+    img_cols_high = img_original_cols-(img_original_cols-img_cols)/2
+    data_shape = img_rows*img_cols
 
 #Normaluzing function
 def normalized(rgb):
@@ -248,59 +251,61 @@ def create_decoding_layers():
         BatchNormalization()
     ]
 
-#Model creation
-print("------------CREATING NETWORK--------------")
-network = models.Sequential()
 
-# Add a noise layer to get a denoising network. This helps avoid overfitting
-#network.add(Layer(input_shape=(3, 960, 720)))
+def create_network():
+    #Model creation
+    print("------------CREATING NETWORK--------------")
+    network = models.Sequential()
 
-#network.add(GaussianNoise(stddev=0.3))
-network.encoding_layers = create_encoding_layers()
-network.decoding_layers = create_decoding_layers()
-for l in network.encoding_layers:
-    network.add(l)
-for l in network.decoding_layers:
-    network.add(l)
+    # Add a noise layer to get a denoising network. This helps avoid overfitting
+    #network.add(Layer(input_shape=(3, 960, 720)))
 
-network.add(Conv2D(12, 1, padding='valid',))
-network.add(Reshape((12, data_shape)))
-network.add(Permute((2, 1)))
-network.add(Activation('softmax'))
-from keras.optimizers import SGD
-optimizer = SGD(lr=0.01, momentum=0.8, decay=0., nesterov=False)
-network.compile(loss="categorical_crossentropy", optimizer=optimizer)
+    #network.add(GaussianNoise(stddev=0.3))
+    network.encoding_layers = create_encoding_layers()
+    network.decoding_layers = create_decoding_layers()
+    for l in network.encoding_layers:
+        network.add(l)
+    for l in network.decoding_layers:
+        network.add(l)
+
+    network.add(Conv2D(12, 1, padding='valid',))
+    network.add(Reshape((12, data_shape)))
+    network.add(Permute((2, 1)))
+    network.add(Activation('softmax'))
+    from keras.optimizers import SGD
+    optimizer = SGD(lr=0.01, momentum=0.8, decay=0., nesterov=False)
+    network.compile(loss="categorical_crossentropy", optimizer=optimizer)
+
+def train_network():
+    print("------------TRAINING NETWORK--------------")
+    network.fit_generator(prep_data(),epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=1, class_weight=class_weight)
+    #history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
+    #, validation_data=(X_test, X_test))
+    network.save_weights(save_model_name)
 
 
-print("------------TRAINING NETWORK--------------")
-network.fit_generator(prep_data(),epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=1, class_weight=class_weight)
-#history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
-#, validation_data=(X_test, X_test))
-network.save_weights(save_model_name)
+def deploy_network():
+    print("------------DEPLOYING NETWORK--------------")
 
+    #Deployment variables
+    network.load_weights(run_model_name)
+    import matplotlib.pyplot as plt
+    #matplotlib inline
+    #BGR
+    void =	[0,0,0] #Black
+    Sky = [255,255,255] # White
+    Building = [0,0,255] # Red
+    Road = [255,0,0] # Blue
+    Sidewalk = [0,255,0] # Green
+    Fence = [255,0,255] # Violet
+    Vegetation = [255,255,0] # Yellow
+    Pole = [0,255,255]
+    Car = [128,0,64]
+    Sign = [128,128,192]
+    Pedestrian = [0,64,64]
+    Cyclist = [192,128,0]
 
-"""
-print("------------DEPLOYING NETWORK--------------")
-
-#Deployment variables
-network.load_weights(run_model_name)
-import matplotlib.pyplot as plt
-#matplotlib inline
-#BGR
-void =	[0,0,0] #Black
-Sky = [255,255,255] # White
-Building = [0,0,255] # Red
-Road = [255,0,0] # Blue
-Sidewalk = [0,255,0] # Green
-Fence = [255,0,255] # Violet
-Vegetation = [255,255,0] # Yellow
-Pole = [0,255,255]
-Car = [128,0,64]
-Sign = [128,128,192]
-Pedestrian = [0,64,64]
-Cyclist = [192,128,0]
-
-label_colours = np.array([void, Sky, Building, Road, Sidewalk, Fence, Vegetation, Pole, Car, Sign, Pedestrian, Cyclist])
+    label_colours = np.array([void, Sky, Building, Road, Sidewalk, Fence, Vegetation, Pole, Car, Sign, Pedestrian, Cyclist])
 
 #Visualizing function
 def visualize(temp):
@@ -317,29 +322,26 @@ def visualize(temp):
     rgb[:,:,1] = (g)#[:,:,1]
     rgb[:,:,2] = (b)#[:,:,2]
     return rgb
-"""
 
 
-#Image analysis
-"""
-import os
-img = cv2.imread(os.getcwd() + '/SYNTHIA_RAND_CVPR16/RGB/ap_000_01-11-2015_19-20-57_000005_0_Rand_1.png')
-img_prep = []
-img = cv2.resize(img, (img_rows,img_cols))
-img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
-img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
-output = network.predict_proba(np.array(img_prep)[1:2])
-pred = visualize(np.argmax(output[0],axis=1).reshape((img_rows,img_cols)))
-cv2.imshow('Prediction', pred)
-cv2.imshow('Original', img)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
-"""
+def image_analysis():
+    #Image analysis
+    import os
+    img = cv2.imread(os.getcwd() + '/SYNTHIA_RAND_CVPR16/RGB/ap_000_01-11-2015_19-20-57_000005_0_Rand_1.png')
+    img_prep = []
+    img = cv2.resize(img, (img_rows,img_cols))
+    img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
+    img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
+    output = network.predict_proba(np.array(img_prep)[1:2])
+    pred = visualize(np.argmax(output[0],axis=1).reshape((img_rows,img_cols)))
+    cv2.imshow('Prediction', pred)
+    cv2.imshow('Original', img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
-#Video playback analysis
-"""
-from moviepy.editor import VideoFileClip
+
+#VIDEO ANALSUSUS
 def process_image(image):
     vid_img_prep = []
     vid_img = cv2.resize(image, (720, 960))
@@ -355,31 +357,34 @@ def process_image(image):
     #cv2.waitKey(0)
     return pred
 
-video = VideoFileClip("01TP_extract.avi")
 def invert_red_blue(image):
     return image[:,:,[2,1,0]]
-video = video.fl_image(invert_red_blue)
-pred_video = video.fl_image(process_image)
-pred_video.write_videofile('pred_video.avi', codec='rawvideo', audio=False)
-"""
 
-#Live stream video analysis
-"""
-while(True):
-    cap = cv2.VideoCapture(0)
-    ret, frame = cap.read()
-    #cv2.imshow('frame', frame)
-    vid_img_prep = []
-    vid_img = cv2.resize(frame, (600, 600))
-    vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
-    vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
-    cap.release()
-    output = network.predict_proba(np.array(vid_img_prep)[1:2])
-    pred = visualize(np.argmax(output[0],axis=1).reshape((600,600)))
-    cv2.imshow('Prediction', pred)
-    cv2.imshow('Original', vid_img)
-    cv2.waitKey(1)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-cv2.destroyAllWindows()
-"""
+def video_analysis():
+    #Video playback analysis
+    video = VideoFileClip("01TP_extract.avi")
+    video = video.fl_image(invert_red_blue)
+    pred_video = video.fl_image(process_image)
+    pred_video.write_videofile('pred_video.avi', codec='rawvideo', audio=False)
+
+
+def live_analysis():
+    #Live stream video analysis
+
+    while(True):
+        cap = cv2.VideoCapture(1)
+        ret, frame = cap.read()
+        #cv2.imshow('frame', frame)
+        vid_img_prep = []
+        vid_img = cv2.resize(frame, (600, 600))
+        vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
+        vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
+        cap.release()
+        output = network.predict_proba(np.array(vid_img_prep)[1:2])
+        pred = visualize(np.argmax(output[0],axis=1).reshape((600,600)))
+        cv2.imshow('Prediction', pred)
+        cv2.imshow('Original', vid_img)
+        cv2.waitKey(1)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    cv2.destroyAllWindows()
