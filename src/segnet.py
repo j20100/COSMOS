@@ -54,19 +54,21 @@ class Segnet():
     """
     Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
     """
-    path = './SYNTHIA_RAND_CVPR16/'
+    path = './CamVid/'
     img_channels = 3
-    img_original_rows=720
-    img_original_cols=960
+    img_original_rows=360
+    img_original_cols=480
     img_rows = 600
     img_cols = 600
-    epochs = 1
-    batch_size = 2
-    steps_per_epoch = 1
+    epochs = 10
+    batch_size = 3
+    steps_per_epoch = 100
+    nb_class = 12
+    nb_dim = 3
     frame = []
 
     #Model save variables
-    save_model_name='model_ep100_bs3_st1000_res900_cw.hdf5'
+    save_model_name='model_ep10_bs5_st100_res600_cw_synth_camvid.hdf5'
     run_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
 
 
@@ -81,6 +83,8 @@ class Segnet():
     class_weight = np.zeros(len(class_pixel))
     for i in range(len(class_pixel)):
         class_weight[i] = np.median(class_freq) / class_freq[i]
+
+    class_weighting_camvid= [0.2595, 0.1826, 4.5640, 0.1417, 0.5051, 0.3826, 9.6446, 1.8418, 6.6823, 6.2478, 3.0, 7.3614]
 
     #Dynamic variables
     img_rows_low = (img_original_rows-img_rows)/2
@@ -114,7 +118,7 @@ class Segnet():
 
     #Binary labeling function
     def binarylab(self, labels):
-        x = np.zeros([self.img_original_rows,self.img_original_cols,12])
+        x = np.zeros([self.img_original_rows, self.img_original_cols, self.nb_class])
         for i in range(self.img_original_rows):
             for j in range(self.img_original_cols):
                 if labels[i][j] == -1:
@@ -149,7 +153,7 @@ class Segnet():
         return label_weight
 
     #Data generator for the synthia dataset
-    def prep_data(self):
+    def prep_data_synthia(self):
         while 1:
             with open(self.path+'ALL.txt') as f:
                 txt = f.readlines()
@@ -164,27 +168,42 @@ class Segnet():
                 train_data.append(np.rollaxis(normalized(cv2.imread(os.getcwd() + '/SYNTHIA_RAND_CVPR16/RGB/' + txt[index][0][:])),2))
                 with open(dest_lab) as f:
                     lab = [[int(num) for num in line.split()] for line in f]
-                train_label.append(binarylab(lab))
+                train_label.append(self.binarylab(lab))
                 train_data_array=np.array(train_data)[:,:,self.img_rows_low:self.img_rows_high,self.img_cols_low:self.img_cols_high]
                 train_label_array=np.array(train_label)[:,self.img_rows_low:self.img_rows_high,self.img_cols_low:self.img_cols_high,:]
             nb_data=train_data_array.shape[0]
             yield(train_data_array, np.reshape(train_label_array,(nb_data,self.data_shape,12)))
             f.close()
 
-    #Prep data for the camvid dataset
-    """
-    def prep_data():
-        train_data = []
-        train_label = []
 
-        with open(path+'train.txt') as f:
-            txt = f.readlines()
-            txt = [line.split(' ') for line in txt]
-        for i in range(len(txt)):
-            train_data.append(np.rollaxis(normalized(cv2.imread(os.getcwd() + txt[i][0][7:])),2))
-            train_label.append(binarylab(cv2.imread(os.getcwd() + txt[i][1][7:][:-1])[:,:,0]))
-        return np.array(train_data), np.array(train_label)
-    """
+    def resize_input_data(self, input_img):
+        x = np.zeros([self.nb_dim, self.img_rows, self.img_cols])
+        for i in range(input_img.shape[0]):
+            x[i,:,:] = cv2.resize(input_img[i,:,:], (self.img_rows,self.img_cols))
+        return x
+
+    def resize_input_binary_label(self, input_img):
+        x = np.zeros([self.img_rows, self.img_cols, self.nb_class])
+        for i in range(input_img.shape[2]):
+            buff = input_img[:,:,i]
+            x[:,:,i] = np.ceil(cv2.resize(buff, (self.img_rows,self.img_cols)))
+        return x
+
+
+    #Prep data for the camvid dataset
+    def prep_data_camvid(self):
+        while 1:
+            with open(self.path+'train.txt') as f:
+                txt = f.readlines()
+                txt = [line.split(' ') for line in txt]
+                train_data = []
+                train_label = []
+            for i in range(self.batch_size):
+                train_data.append(self.resize_input_data(np.rollaxis(normalized(cv2.imread(os.getcwd() + txt[i][0][7:])),2)))
+                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(os.getcwd() + txt[i][1][7:][:-1])[:,:,0])))
+
+            yield(np.array(train_data), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,12)))
+            f.close()
 
     #Prep for hybrid dataset
     """
@@ -273,7 +292,8 @@ class Segnet():
 
     def train_network(self):
         print("------------TRAINING NETWORK--------------")
-        self.network.fit_generator(self.prep_data(),epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1, class_weight=self.class_weight)
+        self.network.load_weights(self.run_model_name)
+        self.network.fit_generator(self.prep_data_camvid(),epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1, class_weight=self.class_weighting_camvid)
         #history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
         #, validation_data=(X_test, X_test))
         self.network.save_weights(self.save_model_name)
@@ -394,8 +414,8 @@ if __name__ == '__main__':
     rospy.Subscriber("/cv_camera/image_raw", Image, sn.image_callback)
 
     sn.create_network()
-    sn.deploy_network()
-    sn.live_analysis()
+    sn.train_network()
+    #sn.live_analysis()
     try:
         rospy.spin()
     except KeyboardInterrupt:
