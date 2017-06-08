@@ -56,19 +56,19 @@ class Segnet():
     """
     path = './CamVid/'
     img_channels = 3
-    img_original_rows=360
-    img_original_cols=480
+    img_original_rows=720
+    img_original_cols=960
     img_rows = 600
     img_cols = 600
     epochs = 10
-    batch_size = 3
+    batch_size = 2
     steps_per_epoch = 100
     nb_class = 12
     nb_dim = 3
     frame = []
 
     #Model save variables
-    save_model_name='model_ep10_bs5_st100_res600_cw_synth_camvid.hdf5'
+    save_model_name='model_ep100_bs3_st1000_res900_cw.hdf5'
     run_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
 
 
@@ -84,9 +84,9 @@ class Segnet():
     for i in range(len(class_pixel)):
         class_weight[i] = np.median(class_freq) / class_freq[i]
 
-    class_weighting_camvid= [0.2595, 0.1826, 4.5640, 0.1417, 0.5051, 0.3826, 9.6446, 1.8418, 6.6823, 6.2478, 3.0, 7.3614]
-
-    #Dynamic variables
+    #class_weighting_camvid= [0.2595, 0.1826, 4.5640, 0.1417, 0.5051, 0.3826,
+    #9.6446, 1.8418, 6.6823, 6.2478, 3.0, 7.3614]
+    class_weighting_camvid= [0.01, 0.2595, 0.1826, 0.1417, 0.3826, 6.6823, 9.6446, 4.5640, 6.2478, 1.8418, 3.0, 7.3614]#Dynamic variables
     img_rows_low = (img_original_rows-img_rows)/2
     img_rows_high = img_original_rows-(img_original_rows-img_rows)/2
     img_cols_low = (img_original_cols-img_cols)/2
@@ -94,18 +94,33 @@ class Segnet():
     data_shape = img_rows*img_cols
 
     #BGR
-    void =	[0,0,0] #Black
-    Sky = [255,255,255] # White
-    Building = [0,0,255] # Red
-    Road = [255,0,0] # Blue
-    Sidewalk = [0,255,0] # Green
-    Fence = [255,0,255] # Violet
-    Vegetation = [255,255,0] # Yellow
-    Pole = [0,255,255]
-    Car = [128,0,64]
-    Sign = [128,128,192]
-    Pedestrian = [0,64,64]
-    Cyclist = [192,128,0]
+    void =	[0,0,0] #Black 0
+    Sky = [255,255,255] # White 1
+    Building = [0,0,255] # Red 2
+    Road = [255,0,0] # Blue 3
+    Sidewalk = [0,255,0] # Green 4
+    Fence = [255,0,255] # Violet 5
+    Vegetation = [255,255,0] # Yellow 6
+    Pole = [0,255,255] #7
+    Car = [128,0,64] #8
+    Sign = [128,128,192] #9
+    Pedestrian = [0,64,64] #10
+    Cyclist = [192,128,0] #11
+
+    #BGR
+    #void =	[0,0,0] #Black 0
+    #Sky = [255,255,255] # White 1
+    #Building = [0,0,0] # Red 2
+    #Road = [0,0,0] # Blue 3
+    #Sidewalk = [0,255,0] # Green 4
+    #Fence = [0,0,0] # Violet 5
+    #Vegetation = [0,0,0] # Yellow 6
+    #Pole = [0,0,0] #7
+    #Car = [0,0,0] #8
+    #Sign = [0,0,0] #9
+    #Pedestrian = [0,0,0] #10
+    #Cyclist = [0,0,0] #11
+
 
     label_colours = np.array([void, Sky, Building, Road, Sidewalk, Fence, Vegetation, Pole, Car, Sign, Pedestrian, Cyclist])
 
@@ -121,10 +136,84 @@ class Segnet():
         x = np.zeros([self.img_original_rows, self.img_original_cols, self.nb_class])
         for i in range(self.img_original_rows):
             for j in range(self.img_original_cols):
-                if labels[i][j] == -1:
-                    labels[i][j] = 0
-                x[i,j,labels[i][j]]=1
+                #if labels[i][j] == -1:
+                #    labels[i][j] = 0
+                x[i, j, self.change_class_id_camvid(labels[i][j])] = 1
         return x
+
+    def resize_input_data(self, input_img):
+        x = np.zeros([self.nb_dim, self.img_rows, self.img_cols])
+        for i in range(input_img.shape[0]):
+            x[i,:,:] = cv2.resize(input_img[i,:,:], (self.img_rows,self.img_cols))
+        return x
+
+    def resize_input_binary_label(self, input_img):
+        x = np.zeros([self.img_rows, self.img_cols, self.nb_class])
+        for i in range(input_img.shape[2]):
+            buff = input_img[:,:,i]
+            x[:,:,i] = np.ceil(cv2.resize(buff, (self.img_rows,self.img_cols)))
+        return x
+
+    def change_class_id_camvid(self, input_class_id):
+
+        #Camvid class
+        #Sky = [128,128,128]
+        #Building = [128,0,0]
+        #Pole = [192,192,128]
+        #Road_marking = [255,69,0]
+        #Road = [128,64,128]
+        #Pavement = [60,40,222]
+        #Tree = [128,128,0]
+        #SignSymbol = [192,128,128]
+        #Fence = [64,64,128]
+        #Car = [64,0,128]
+        #Pedestrian = [64,64,0]
+        #Bicyclist = [0,128,192]
+        #Unlabelled = [0,0,0]
+
+        #Sky
+        if input_class_id == 0:
+            output_class_id = 1
+        #Building
+        elif input_class_id == 1:
+            output_class_id = 2
+        #Pole
+        elif input_class_id == 2:
+            output_class_id = 7
+        #Sign
+        elif input_class_id == 3:
+            output_class_id = 9
+        #Road
+        elif input_class_id == 4:
+            output_class_id = 3
+        #Sidewalk
+        elif input_class_id == 5:
+            output_class_id = 4
+        #Vegetation
+        elif input_class_id == 6:
+            output_class_id = 6
+        #Sign_symbol
+        elif input_class_id == 7:
+            output_class_id = 9
+        #Fence
+        elif input_class_id == 8:
+            output_class_id = 5
+        #Car
+        elif input_class_id == 9:
+            output_class_id = 8
+        #Pedestrian
+        elif input_class_id == 10:
+            output_class_id = 10
+        #Cyclist
+        elif input_class_id == 11:
+            output_class_id = 11
+        #Void
+        else:
+            output_class_id = 0
+
+        return output_class_id
+
+
 
     #Calcul the weight of each class in the dataset
     def class_weighting(self):
@@ -175,19 +264,6 @@ class Segnet():
             yield(train_data_array, np.reshape(train_label_array,(nb_data,self.data_shape,12)))
             f.close()
 
-
-    def resize_input_data(self, input_img):
-        x = np.zeros([self.nb_dim, self.img_rows, self.img_cols])
-        for i in range(input_img.shape[0]):
-            x[i,:,:] = cv2.resize(input_img[i,:,:], (self.img_rows,self.img_cols))
-        return x
-
-    def resize_input_binary_label(self, input_img):
-        x = np.zeros([self.img_rows, self.img_cols, self.nb_class])
-        for i in range(input_img.shape[2]):
-            buff = input_img[:,:,i]
-            x[:,:,i] = np.ceil(cv2.resize(buff, (self.img_rows,self.img_cols)))
-        return x
 
 
     #Prep data for the camvid dataset
@@ -293,7 +369,7 @@ class Segnet():
     def train_network(self):
         print("------------TRAINING NETWORK--------------")
         self.network.load_weights(self.run_model_name)
-        self.network.fit_generator(self.prep_data_camvid(),epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1, class_weight=self.class_weighting_camvid)
+        self.network.fit_generator(self.prep_data_camvid(), epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1, class_weight=self.class_weighting_camvid)
         #history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
         #, validation_data=(X_test, X_test))
         self.network.save_weights(self.save_model_name)
@@ -328,11 +404,11 @@ class Segnet():
         print(os.getcwd() + '/test.png')
         img_prep = []
         cv2.imshow('Prediction', img)
-        img = cv2.resize(img, (self.img_rows,self.img_cols))
+        img = cv2.resize(img, (self.img_cols, self.img_rows))
         img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
         img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
         output = self.network.predict_proba(np.array(img_prep)[1:2])
-        pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows,self.img_cols)))
+        pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows, self.img_cols)))
         cv2.imshow('Prediction', pred)
         cv2.imshow('Original', img)
         cv2.waitKey(0)
@@ -402,10 +478,6 @@ class UnPooling2D(Layer):
         return {"name":self.__class__.__name__,
             "poolsize":self.poolsize}
 
-
-
-
-
 if __name__ == '__main__':
     arg = sys.argv
 
@@ -414,8 +486,8 @@ if __name__ == '__main__':
     rospy.Subscriber("/cv_camera/image_raw", Image, sn.image_callback)
 
     sn.create_network()
-    sn.train_network()
-    #sn.live_analysis()
+    sn.deploy_network()
+    sn.image_analysis()
     try:
         rospy.spin()
     except KeyboardInterrupt:
