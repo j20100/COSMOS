@@ -20,6 +20,7 @@ import itertools
 import numpy as np
 import theano.tensor as T
 import random
+import scipy.io as sio
 np.random.seed(1337) # for reproducibility
 
 from keras.layers.noise import GaussianNoise
@@ -56,20 +57,20 @@ class Segnet():
     """
     path = './CamVid/'
     img_channels = 3
-    img_original_rows=720
-    img_original_cols=960
-    img_rows = 600
-    img_cols = 600
+    img_original_rows=480
+    img_original_cols=640
+    img_rows = 480
+    img_cols = 640
     epochs = 10
-    batch_size = 2
+    batch_size = 1
     steps_per_epoch = 100
-    nb_class = 12
+    nb_class = 894
     nb_dim = 3
     frame = []
 
     #Model save variables
-    save_model_name='model_ep100_bs3_st1000_res900_cw.hdf5'
-    run_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
+    save_model_name='model_ep100_bs5_st1000_res600_cw_nyu.hdf5'
+    run_model_name='model_ep100_bs5_st1000_res600_cw_nyu.hdf5'
 
 
     #Class wieght for dataset
@@ -86,7 +87,9 @@ class Segnet():
 
     #class_weighting_camvid= [0.2595, 0.1826, 4.5640, 0.1417, 0.5051, 0.3826,
     #9.6446, 1.8418, 6.6823, 6.2478, 3.0, 7.3614]
-    class_weighting_camvid= [0.01, 0.2595, 0.1826, 0.1417, 0.3826, 6.6823, 9.6446, 4.5640, 6.2478, 1.8418, 3.0, 7.3614]#Dynamic variables
+    class_weighting_camvid= [0.01, 0.2595, 0.1826, 0.1417, 0.3826, 6.6823, 9.6446, 4.5640, 6.2478, 1.8418, 3.0, 7.3614]
+
+    #Dynamic variables
     img_rows_low = (img_original_rows-img_rows)/2
     img_rows_high = img_original_rows-(img_original_rows-img_rows)/2
     img_cols_low = (img_original_cols-img_cols)/2
@@ -222,7 +225,7 @@ class Segnet():
             txt = f.readlines()
             txt = [line.split(' ') for line in txt]
         dataset = []
-        label_weight = np.zeros([12])
+        label_weight = np.zeros([self.nb_class])
         print(label_weight)
         y = 0
 
@@ -261,10 +264,8 @@ class Segnet():
                 train_data_array=np.array(train_data)[:,:,self.img_rows_low:self.img_rows_high,self.img_cols_low:self.img_cols_high]
                 train_label_array=np.array(train_label)[:,self.img_rows_low:self.img_rows_high,self.img_cols_low:self.img_cols_high,:]
             nb_data=train_data_array.shape[0]
-            yield(train_data_array, np.reshape(train_label_array,(nb_data,self.data_shape,12)))
+            yield(train_data_array, np.reshape(train_label_array,(nb_data,self.data_shape,self.nb_class)))
             f.close()
-
-
 
     #Prep data for the camvid dataset
     def prep_data_camvid(self):
@@ -275,11 +276,34 @@ class Segnet():
                 train_data = []
                 train_label = []
             for i in range(self.batch_size):
-                train_data.append(self.resize_input_data(np.rollaxis(normalized(cv2.imread(os.getcwd() + txt[i][0][7:])),2)))
-                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(os.getcwd() + txt[i][1][7:][:-1])[:,:,0])))
+                index= random.randint(0, len(txt)-1)
+                train_data.append(self.resize_input_data(np.rollaxis(normalized(cv2.imread(os.getcwd() + txt[index][0][7:])),2)))
+                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(os.getcwd() + txt[index][1][7:][:-1])[:,:,0])))
 
-            yield(np.array(train_data), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,12)))
+            yield(np.array(train_data), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
             f.close()
+
+    #Prep data for the nuy dataset
+    def prep_data_nyu(self):
+        while 1:
+            data = sio.loadmat('nyu_dataset.mat')
+            labels = data['labels']
+            images = np.rollaxis(data['images'],2)
+            train_data = []
+            train_label = []
+
+            for i in range(self.batch_size):
+                index = random.randint(0, images.shape[3]-1)
+
+                train_data.append(normalized(np.rollaxis(np.rollaxis(images[:,:,:,index],2),2)))
+                train_label.append(self.binarylab(labels[:,:,index]))
+                #train_data.append(self.resize_input_data(np.rollaxis(normalized(images[:,:,:,index]), 1)))
+                #train_label.append(self.resize_input_binary_label(self.binarylab(np.rollaxis(np.rollaxis(labels[:,:,index],1),2))))
+
+            yield(np.rollaxis(np.rollaxis(np.array(train_data),3),1), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
+
+
+
 
     #Prep for hybrid dataset
     """
@@ -358,8 +382,8 @@ class Segnet():
         for l in self.network.decoding_layers:
             self.network.add(l)
 
-        self.network.add(Conv2D(12, 1, padding='valid',))
-        self.network.add(Reshape((12, self.data_shape)))
+        self.network.add(Conv2D(self.nb_class, 1, padding='valid',))
+        self.network.add(Reshape((self.nb_class, self.data_shape)))
         self.network.add(Permute((2, 1)))
         self.network.add(Activation('softmax'))
         from keras.optimizers import SGD
@@ -368,8 +392,8 @@ class Segnet():
 
     def train_network(self):
         print("------------TRAINING NETWORK--------------")
-        self.network.load_weights(self.run_model_name)
-        self.network.fit_generator(self.prep_data_camvid(), epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1, class_weight=self.class_weighting_camvid)
+        #self.network.load_weights(self.run_model_name)
+        self.network.fit_generator(self.prep_data_nyu(), epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1)
         #history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
         #, validation_data=(X_test, X_test))
         self.network.save_weights(self.save_model_name)
@@ -468,7 +492,7 @@ class UnPooling2D(Layer):
                 self.poolsize[1] * input_shape[3])
 
     def get_output(self, train):
-        X = self.get_input(trai40,n)
+        X = self.get_input(train)
         s1 = self.poolsize[0]
         s2 = self.poolsize[1]
         output = X.repeat(s1, axis=2).repeat(s2, axis=3)
@@ -486,8 +510,10 @@ if __name__ == '__main__':
     rospy.Subscriber("/cv_camera/image_raw", Image, sn.image_callback)
 
     sn.create_network()
-    sn.deploy_network()
-    sn.image_analysis()
+    sn.train_network()
+    #sn.deploy_network()
+    #sn.image_analysis()
+    print("Training is over")
     try:
         rospy.spin()
     except KeyboardInterrupt:
