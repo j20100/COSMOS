@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image
 
 # Comment to use tensorflow
 os.environ['KERAS_BACKEND'] = 'theano'
-os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu0,floatX=float32,optimizer=fast_compile'
+os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu1,floatX=float32,optimizer=fast_compile'
 
 print("------------INITIALIZE DEPENDENCIES--------------")
 
@@ -57,20 +57,20 @@ class Segnet():
     """
     path = './CamVid/'
     img_channels = 3
-    img_original_rows=480
-    img_original_cols=640
-    img_rows = 480
-    img_cols = 640
-    epochs = 10
+    img_original_rows=600
+    img_original_cols=600
+    img_rows = 600
+    img_cols = 600
+    epochs = 100
     batch_size = 1
-    steps_per_epoch = 100
-    nb_class = 894
+    steps_per_epoch = 1000
+    nb_class = 12
     nb_dim = 3
     frame = []
 
     #Model save variables
-    save_model_name='model_ep100_bs5_st1000_res600_cw_nyu.hdf5'
-    run_model_name='model_ep100_bs5_st1000_res600_cw_nyu.hdf5'
+    save_model_name='model_ep100_bs5_st1000_res480_640_cw_nyu.hdf5'
+    run_model_name='model_ep100_bs5_st1000_res600_cw_synth_camvid.hdf5'
 
 
     #Class wieght for dataset
@@ -510,9 +510,9 @@ if __name__ == '__main__':
     rospy.Subscriber("/cv_camera/image_raw", Image, sn.image_callback)
 
     sn.create_network()
-    sn.train_network()
-    #sn.deploy_network()
-    #sn.image_analysis()
+    #sn.train_network()
+    sn.deploy_network()
+    sn.image_analysis()
     print("Training is over")
     try:
         rospy.spin()
