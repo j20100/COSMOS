@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image
 
 # Comment to use tensorflow
 os.environ['KERAS_BACKEND'] = 'theano'
-os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu1,floatX=float32,optimizer=fast_compile'
+os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu0,floatX=float32,optimizer=fast_compile'
 
 print("------------INITIALIZE DEPENDENCIES--------------")
 
@@ -69,8 +69,8 @@ class Segnet():
     frame = []
 
     #Model save variables
-    save_model_name='model_ep100_bs5_st1000_res480_640_cw_nyu.hdf5'
-    run_model_name='model_ep100_bs5_st1000_res600_cw_synth_camvid.hdf5'
+    save_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
+    run_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
 
 
     #Class wieght for dataset
@@ -132,17 +132,6 @@ class Segnet():
 
     def __init__(self):
         pass
-
-
-    #Binary labeling function
-    def binarylab(self, labels):
-        x = np.zeros([self.img_original_rows, self.img_original_cols, self.nb_class])
-        for i in range(self.img_original_rows):
-            for j in range(self.img_original_cols):
-                #if labels[i][j] == -1:
-                #    labels[i][j] = 0
-                x[i, j, self.change_class_id_camvid(labels[i][j])] = 1
-        return x
 
     def resize_input_data(self, input_img):
         x = np.zeros([self.nb_dim, self.img_rows, self.img_cols])
@@ -286,7 +275,7 @@ class Segnet():
     #Prep data for the nuy dataset
     def prep_data_nyu(self):
         while 1:
-            data = sio.loadmat('nyu_dataset.mat')
+            data = sio.loadmat(os.getcwd() + '/ros_ws/src/COSMOS/src/' +'nyu_dataset.mat')
             labels = data['labels']
             images = np.rollaxis(data['images'],2)
             train_data = []
@@ -295,11 +284,8 @@ class Segnet():
             for i in range(self.batch_size):
                 index = random.randint(0, images.shape[3]-1)
 
-                train_data.append(normalized(np.rollaxis(np.rollaxis(images[:,:,:,index],2),2)))
+                train_data.append(np.rollaxis(np.rollaxis(images[:,:,:,index],2),2))
                 train_label.append(self.binarylab(labels[:,:,index]))
-                #train_data.append(self.resize_input_data(np.rollaxis(normalized(images[:,:,:,index]), 1)))
-                #train_label.append(self.resize_input_binary_label(self.binarylab(np.rollaxis(np.rollaxis(labels[:,:,index],1),2))))
-
             yield(np.rollaxis(np.rollaxis(np.array(train_data),3),1), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
 
 
@@ -403,7 +389,8 @@ class Segnet():
         print("------------DEPLOYING NETWORK--------------")
 
         #Deployment variables
-        self.network.load_weights(self.run_model_name)
+        d_path = os.getcwd() + '/ros_ws/src/COSMOS/src/' + self.run_model_name
+        self.network.load_weights(d_path)
 
     #Visualizing function
     def visualize(self, temp):
@@ -421,19 +408,63 @@ class Segnet():
         rgb[:,:,2] = (b)#[:,:,2]
         return rgb
 
+    def visualize_colormap(self, temp):
+
+        r = temp.copy()
+        g = temp.copy()
+        b = temp.copy()
+
+        nb_colors=255^3
+        i=0
+        j=0
+        k=0
+        inc=28
+        self.color_list=np.zeros((self.nb_class,3))
+        print(self.color_list.shape)
+        for x in range(self.nb_class):
+            self.color_list[x]=[i,j,k]
+            k=k+inc
+            if k >= 255:
+                j=j+inc
+                k=0
+            if j >= 255:
+                i=i+inc
+                j=0
+        for l in range(self.nb_class):
+            r[temp==l]=self.color_list[l,0]
+            g[temp==l]=self.color_list[l,1]
+            b[temp==l]=self.color_list[l,2]
+
+        rgb = np.zeros((temp.shape[0], temp.shape[1], 3))
+        rgb[:,:,0] = (r)#[:,:,0]
+        rgb[:,:,1] = (g)#[:,:,1]
+        rgb[:,:,2] = (b)#[:,:,2]
+        return rgb
+
     def image_analysis(self):
         #Image analysis
         import os
-        img = cv2.imread(os.getcwd() + '/test.png')
-        print(os.getcwd() + '/test.png')
+
+        data = sio.loadmat(os.getcwd() + '/ros_ws/src/COSMOS/src/' +'nyu_dataset.mat')
+        labels = data['labels']
+        images = np.rollaxis(data['images'],2)
+        img_label = self.visualize(labels[:,:,55])
+        cv2.imshow('dsa', img_label)
+        img=np.rollaxis(np.rollaxis(images[:,:,:,55],2),2)
+        #print(images_data)
+        #cv2.imshow('Originali', images_data)
+
+        #img = cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'test.jpg')
+        #print(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'test.jpg')
         img_prep = []
-        cv2.imshow('Prediction', img)
+        print(img.shape)
+        #img = img[:,:,[2,0,1]]
         img = cv2.resize(img, (self.img_cols, self.img_rows))
-        img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
-        img_prep.append(normalized(img).swapaxes(0,2).swapaxes(1,2))
+        img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
+        img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
         output = self.network.predict_proba(np.array(img_prep)[1:2])
         pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows, self.img_cols)))
-        cv2.imshow('Prediction', pred)
+        #cv2.imshow('Prediction', pred)
         cv2.imshow('Original', img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
@@ -463,8 +494,8 @@ class Segnet():
         while(True):
             vid_img_prep = []
             vid_img = cv2.resize(self.frame, (self.img_rows,self.img_cols))
-            vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
-            vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
+            vid_img_prep.append(vid_img.swapaxes(0,2).swapaxes(1,2))
+            vid_img_prep.append(vid_img.swapaxes(0,2).swapaxes(1,2))
             output = self.network.predict_proba(np.array(vid_img_prep)[1:2])
             pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows,self.img_cols)))
             cv2.imshow('Prediction', pred)
@@ -506,15 +537,15 @@ if __name__ == '__main__':
     arg = sys.argv
 
     sn = Segnet()
-    rospy.init_node('segmentation_network_node', anonymous=True)
-    rospy.Subscriber("/cv_camera/image_raw", Image, sn.image_callback)
+    rospy.init_node('segmentation_network_node_run', anonymous=True)
+    rospy.Subscriber("/stereo_camera/left/image_rect_color", Image, sn.image_callback)
 
     sn.create_network()
     #sn.train_network()
     sn.deploy_network()
-    sn.image_analysis()
+    sn.live_analysis()
     print("Training is over")
     try:
         rospy.spin()
-    except KeyboardInterrupt:
-        print("Shutting down artificial neural network")
+    except KeyboardInterrupt:image_analysis
+    print("Shutting down artificial neural network")
