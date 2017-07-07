@@ -131,7 +131,7 @@ class Segnet():
     bridge = CvBridge()
 
     def __init__(self):
-        pass
+        self.image_pub = rospy.Publisher("image_seg", Image)
 
     def resize_input_data(self, input_img):
         x = np.zeros([self.nb_dim, self.img_rows, self.img_cols])
@@ -406,7 +406,7 @@ class Segnet():
         rgb[:,:,0] = (r)#[:,:,0]
         rgb[:,:,1] = (g)#[:,:,1]
         rgb[:,:,2] = (b)#[:,:,2]
-        return rgb
+        return rgb.astype('uint8')
 
     def visualize_colormap(self, temp):
 
@@ -473,8 +473,8 @@ class Segnet():
     def process_image(self, image):
         vid_img_prep = []
         vid_img = cv2.resize(image, (self.img_rows,self.img_cols))
-        vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
-        vid_img_prep.append(normalized(vid_img).swapaxes(0,2).swapaxes(1,2))
+        vid_img_prep.append(vid_img.swapaxes(0,2).swapaxes(1,2))
+        vid_img_prep.append(vid_img.swapaxes(0,2).swapaxes(1,2))
         output = self.network.predict_proba(np.array(vid_img_prep)[1:2])
         pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows,self.img_cols)))
         return pred
@@ -498,12 +498,13 @@ class Segnet():
             vid_img_prep.append(vid_img.swapaxes(0,2).swapaxes(1,2))
             output = self.network.predict_proba(np.array(vid_img_prep)[1:2])
             pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows,self.img_cols)))
-            cv2.imshow('Prediction', pred)
-            cv2.imshow('Original', vid_img)
-            cv2.waitKey(1)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        cv2.destroyAllWindows()
+            #cv2.imshow('Prediction', pred)
+            #cv2.imshow('Original', vid_img)
+            self.image_pub.publish(self.bridge.cv2_to_imgmsg(pred))
+            #cv2.waitKey(1)
+            #if cv2.waitKey(1) & 0xFF == ord('q'):
+            #    break
+        #cv2.destroyAllWindows()
 
     def image_callback(self, msg):
         self.frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
@@ -538,6 +539,7 @@ if __name__ == '__main__':
 
     sn = Segnet()
     rospy.init_node('segmentation_network_node_run', anonymous=True)
+
     rospy.Subscriber("/stereo_camera/left/image_rect_color", Image, sn.image_callback)
 
     sn.create_network()
