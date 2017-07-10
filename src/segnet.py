@@ -55,22 +55,24 @@ class Segnet():
     """
     Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
     """
-    path = './CamVid/'
+    path = os.getcwd() + '/ros_ws/src/COSMOS/src/CamVid/'
     img_channels = 3
-    img_original_rows=600
-    img_original_cols=600
+    img_original_rows=360
+    img_original_cols=480
     img_rows = 600
     img_cols = 600
     epochs = 100
-    batch_size = 1
-    steps_per_epoch = 1000
+    batch_size = 5
+    steps_per_epoch = 100
     nb_class = 12
     nb_dim = 3
     frame = []
 
     #Model save variables
-    save_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
-    run_model_name='model_ep100_bs5_st1000_res600_cw.hdf5'
+    save_model_name='model_ep100_bs5_st100_res600_cw_synth_camvid_val.hdf5'
+    run_model_name='model_ep100_bs5_st100_res600_cw_synth_camvid_val.hdf5'
+    load_model_name= os.getcwd() + '/ros_ws/src/COSMOS/src/' +'model_ep10_bs5_st1000_res600_cw_synth_camvid.hdf5'
+
 
 
     #Class wieght for dataset
@@ -137,6 +139,16 @@ class Segnet():
         x = np.zeros([self.nb_dim, self.img_rows, self.img_cols])
         for i in range(input_img.shape[0]):
             x[i,:,:] = cv2.resize(input_img[i,:,:], (self.img_rows,self.img_cols))
+        return x
+
+    #Binary labeling function
+    def binarylab(self, labels):
+        x = np.zeros([self.img_original_rows, self.img_original_cols, self.nb_class])
+        for i in range(self.img_original_rows):
+            for j in range(self.img_original_cols):
+                #if labels[i][j] == -1:
+                #    labels[i][j] = 0
+                x[i, j, self.change_class_id_camvid(labels[i][j])] = 1
         return x
 
     def resize_input_binary_label(self, input_img):
@@ -266,16 +278,31 @@ class Segnet():
                 train_label = []
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
-                train_data.append(self.resize_input_data(np.rollaxis(normalized(cv2.imread(os.getcwd() + txt[index][0][7:])),2)))
-                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(os.getcwd() + txt[index][1][7:][:-1])[:,:,0])))
+                train_data.append(self.resize_input_data(np.rollaxis(cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + txt[index][0][7:]),2)))
+                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + txt[index][1][7:][:-1])[:,:,0])))
 
             yield(np.array(train_data), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
+            f.close()
+
+    def prep_val_camvid(self):
+        while 1:
+            with open(self.path+'val.txt') as f:
+                txt = f.readlines()
+                txt = [line.split(' ') for line in txt]
+                val_data = []
+                val_label = []
+            for i in range(self.batch_size):
+                index= random.randint(0, len(txt)-1)
+                val_data.append(self.resize_input_data(np.rollaxis(cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src' + txt[index][0][7:]),2)))
+                val_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src' + txt[index][1][7:][:-1])[:,:,0])))
+
+            yield(np.array(val_data), np.reshape(np.array(val_label),(self.batch_size,self.data_shape,self.nb_class)))
             f.close()
 
     #Prep data for the nuy dataset
     def prep_data_nyu(self):
         while 1:
-            data = sio.loadmat(os.getcwd() + '/ros_ws/src/COSMOS/src/' +'nyu_dataset.mat')
+            data = sio.loadmat(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'nyu_dataset.mat')
             labels = data['labels']
             images = np.rollaxis(data['images'],2)
             train_data = []
@@ -378,8 +405,8 @@ class Segnet():
 
     def train_network(self):
         print("------------TRAINING NETWORK--------------")
-        #self.network.load_weights(self.run_model_name)
-        self.network.fit_generator(self.prep_data_nyu(), epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1)
+        self.network.load_weights(self.load_model_name)
+        self.network.fit_generator(self.prep_data_camvid(), epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1,validation_data=self.prep_val_camvid(), validation_steps=10, class_weight=self.class_weighting_camvid)
         #history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
         #, validation_data=(X_test, X_test))
         self.network.save_weights(self.save_model_name)
