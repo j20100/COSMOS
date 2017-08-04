@@ -5,7 +5,7 @@ import os
 import time
 import rospy
 import sys
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 
 
 # Comment to use tensorflow
@@ -37,7 +37,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 import matplotlib.pyplot as plt
 from moviepy.editor import VideoFileClip
-
+np.set_printoptions(threshold=np.nan)
 #General functoins
 #Normaluzing function
 def normalized(rgb):
@@ -55,23 +55,26 @@ class Segnet():
     """
     Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
     """
-    path = os.getcwd() + '/ros_ws/src/COSMOS/src/CamVid/'
+    ros_path = '/home/deepblack/ros_ws/src/COSMOS/src/'
+    path = '/home/deepblack/ros_ws/src/COSMOS/src/CamVid/'
+    path_annotator = '/home/deepblack/Seg_Annotator/static/data/'
     img_channels = 3
-    img_original_rows=360
-    img_original_cols=480
-    img_rows = 600
-    img_cols = 600
-    epochs = 100
-    batch_size = 5
-    steps_per_epoch = 100
-    nb_class = 12
+    img_original_rows=480
+    img_original_cols=720
+    img_rows = 480
+    img_cols = 720
+    epochs = 10
+    batch_size = 4
+    steps_per_epoch = 5
+    nb_class = 13
     nb_dim = 3
     frame = []
+    start = 0
 
     #Model save variables
-    save_model_name='model_ep100_bs5_st100_res600_cw_synth_camvid_val.hdf5'
-    run_model_name='model_ep100_bs5_st100_res600_cw_synth_camvid_val.hdf5'
-    load_model_name= os.getcwd() + '/ros_ws/src/COSMOS/src/' +'model_ep10_bs5_st1000_res600_cw_synth_camvid.hdf5'
+    save_model_name= ros_path + 'model_ep10_bs1_st1_res720p_annotator_courge.hdf5'
+    run_model_name= ros_path + 'model_ep10_bs1_st1_res720p_annotator_courge.hdf5'
+    load_model_name= ros_path + 'model_ep10_bs5_st1000_res600_cw_synth_camvid.hdf5'
 
 
 
@@ -90,6 +93,7 @@ class Segnet():
     #class_weighting_camvid= [0.2595, 0.1826, 4.5640, 0.1417, 0.5051, 0.3826,
     #9.6446, 1.8418, 6.6823, 6.2478, 3.0, 7.3614]
     class_weighting_camvid= [0.01, 0.2595, 0.1826, 0.1417, 0.3826, 6.6823, 9.6446, 4.5640, 6.2478, 1.8418, 3.0, 7.3614]
+    class_weighting_courge = [0.01, 10, 0.01]
 
     #Dynamic variables
     img_rows_low = (img_original_rows-img_rows)/2
@@ -126,7 +130,7 @@ class Segnet():
     #Pedestrian = [0,0,0] #10
     #Cyclist = [0,0,0] #11
 
-
+    #label_colours = np.array([Fence, Road, Building])
     label_colours = np.array([void, Sky, Building, Road, Sidewalk, Fence, Vegetation, Pole, Car, Sign, Pedestrian, Cyclist])
 
     network = models.Sequential()
@@ -138,7 +142,7 @@ class Segnet():
     def resize_input_data(self, input_img):
         x = np.zeros([self.nb_dim, self.img_rows, self.img_cols])
         for i in range(input_img.shape[0]):
-            x[i,:,:] = cv2.resize(input_img[i,:,:], (self.img_rows,self.img_cols))
+            x[i,:,:] = cv2.resize(input_img[i,:,:], (self.img_cols,self.img_rows))
         return x
 
     #Binary labeling function
@@ -148,14 +152,15 @@ class Segnet():
             for j in range(self.img_original_cols):
                 #if labels[i][j] == -1:
                 #    labels[i][j] = 0
-                x[i, j, self.change_class_id_camvid(labels[i][j])] = 1
+                x[i, j, labels[i][j]] = 1
+
         return x
 
     def resize_input_binary_label(self, input_img):
         x = np.zeros([self.img_rows, self.img_cols, self.nb_class])
         for i in range(input_img.shape[2]):
             buff = input_img[:,:,i]
-            x[:,:,i] = np.ceil(cv2.resize(buff, (self.img_rows,self.img_cols)))
+            x[:,:,i] = np.ceil(cv2.resize(buff, (self.img_cols,self.img_rows)))
         return x
 
     def change_class_id_camvid(self, input_class_id):
@@ -233,7 +238,7 @@ class Segnet():
         for i in range (len(txt)):
             print(i)
             end_crop=len(txt[i][0])-4
-            dest_lab = os.getcwd() + '/SYNTHIA_RAND_CVPR16/GTTXT/' + txt[i][0][:end_crop] + '.txt'
+            dest_lab = '/home/deepblack/SYNTHIA_RAND_CVPR16/GTTXT/' + txt[i][0][:end_crop] + '.txt'
 
             with open(dest_lab) as f:
                 lab = [[int(num) for num in line.split()] for line in f]
@@ -257,8 +262,8 @@ class Segnet():
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
                 end_crop=len(txt[index][0])-4
-                dest_lab = os.getcwd() + '/SYNTHIA_RAND_CVPR16/GTTXT/' + txt[index][0][:end_crop] + '.txt'
-                train_data.append(np.rollaxis(normalized(cv2.imread(os.getcwd() + '/SYNTHIA_RAND_CVPR16/RGB/' + txt[index][0][:])),2))
+                dest_lab = '/home/deepblack/SYNTHIA_RAND_CVPR16/GTTXT/' + txt[index][0][:end_crop] + '.txt'
+                train_data.append(np.rollaxis(normalized(cv2.imread('/home/deepblack/SYNTHIA_RAND_CVPR16/RGB/' + txt[index][0][:])),2))
                 with open(dest_lab) as f:
                     lab = [[int(num) for num in line.split()] for line in f]
                 train_label.append(self.binarylab(lab))
@@ -278,8 +283,8 @@ class Segnet():
                 train_label = []
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
-                train_data.append(self.resize_input_data(np.rollaxis(cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + txt[index][0][7:]),2)))
-                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + txt[index][1][7:][:-1])[:,:,0])))
+                train_data.append(self.resize_input_data(np.rollaxis(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src/' + txt[index][0][7:]),2)))
+                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src/' + txt[index][1][7:][:-1])[:,:,0])))
 
             yield(np.array(train_data), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
             f.close()
@@ -293,8 +298,8 @@ class Segnet():
                 val_label = []
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
-                val_data.append(self.resize_input_data(np.rollaxis(cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src' + txt[index][0][7:]),2)))
-                val_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src' + txt[index][1][7:][:-1])[:,:,0])))
+                val_data.append(self.resize_input_data(np.rollaxis(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src' + txt[index][0][7:]),2)))
+                val_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src' + txt[index][1][7:][:-1])[:,:,0])))
 
             yield(np.array(val_data), np.reshape(np.array(val_label),(self.batch_size,self.data_shape,self.nb_class)))
             f.close()
@@ -302,7 +307,7 @@ class Segnet():
     #Prep data for the nuy dataset
     def prep_data_nyu(self):
         while 1:
-            data = sio.loadmat(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'nyu_dataset.mat')
+            data = sio.loadmat('/home/deepblack/ros_ws/src/COSMOS/src/' + 'nyu_dataset.mat')
             labels = data['labels']
             images = np.rollaxis(data['images'],2)
             train_data = []
@@ -316,12 +321,29 @@ class Segnet():
             yield(np.rollaxis(np.rollaxis(np.array(train_data),3),1), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
 
 
+    #Prep for segannotator dataset
+    def prep_data_annotator(self):
+        while 1:
+            with open(self.path_annotator+'test.txt') as f:
+                txt = f.readlines()
+                txt = [line.rstrip() for line in txt]
+                train_data = []
+                train_label = []
+                annot_image = 'none'
+            for i in range(self.batch_size):
+                index= random.randint(0, len(txt)-1)
+                train_data.append(self.resize_input_data(np.rollaxis(cv2.imread(self.path_annotator + 'images/' + txt[index]),2)))
 
+                directory = self.path_annotator + 'annotations/'
+                test = os.listdir( directory )
+                for item in test:
+                    if item.startswith(txt[index]):
+                        annot_image = item
+                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(self.path_annotator + 'annotations/' + annot_image)[:,:,2])))
 
-    #Prep for hybrid dataset
-    """
+            yield(np.array(train_data), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
+            f.close()
 
-    """
 
     #Encoding architecture
     def create_encoding_layers(self):
@@ -405,8 +427,8 @@ class Segnet():
 
     def train_network(self):
         print("------------TRAINING NETWORK--------------")
-        self.network.load_weights(self.load_model_name)
-        self.network.fit_generator(self.prep_data_camvid(), epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1,validation_data=self.prep_val_camvid(), validation_steps=10, class_weight=self.class_weighting_camvid)
+        #self.network.load_weights(self.load_model_name)
+        self.network.fit_generator(self.prep_data_annotator(), epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1 , class_weight = self.class_weighting_courge)#, validation_data=self.prep_val_camvid(), validation_steps=10, class_weight=self.class_weighting_camvid)
         #history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
         #, validation_data=(X_test, X_test))
         self.network.save_weights(self.save_model_name)
@@ -416,7 +438,7 @@ class Segnet():
         print("------------DEPLOYING NETWORK--------------")
 
         #Deployment variables
-        d_path = os.getcwd() + '/ros_ws/src/COSMOS/src/' + self.run_model_name
+        d_path = self.run_model_name
         self.network.load_weights(d_path)
 
     #Visualizing function
@@ -472,17 +494,16 @@ class Segnet():
         #Image analysis
         import os
 
-        data = sio.loadmat(os.getcwd() + '/ros_ws/src/COSMOS/src/' +'nyu_dataset.mat')
-        labels = data['labels']
-        images = np.rollaxis(data['images'],2)
-        img_label = self.visualize(labels[:,:,55])
-        cv2.imshow('dsa', img_label)
-        img=np.rollaxis(np.rollaxis(images[:,:,:,55],2),2)
+        #data = sio.loadmat('/home/deepblack/ros_ws/src/COSMOS/src/' +'nyu_dataset.mat')
+        #labels = data['labels']
+        #images = np.rollaxis(data['images'],2)
+        #img_label = self.visualize(labels[:,:,55])
+        #cv2.imshow('dsa', img_label)
+        #img=np.rollaxis(np.rollaxis(images[:,:,:,55],2),2)
         #print(images_data)
         #cv2.imshow('Originali', images_data)
 
-        #img = cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'test.jpg')
-        #print(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'test.jpg')
+        img = cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'test.jpg')
         img_prep = []
         print(img.shape)
         #img = img[:,:,[2,0,1]]
@@ -491,7 +512,7 @@ class Segnet():
         img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
         output = self.network.predict_proba(np.array(img_prep)[1:2])
         pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows, self.img_cols)))
-        #cv2.imshow('Prediction', pred)
+        cv2.imshow('Prediction', pred)
         cv2.imshow('Original', img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
@@ -567,13 +588,15 @@ if __name__ == '__main__':
     sn = Segnet()
     rospy.init_node('segmentation_network_node_run', anonymous=True)
 
-    rospy.Subscriber("/stereo_camera/left/image_rect_color", Image, sn.image_callback)
+    #rospy.Subscriber("/center_camera/image_color/raw", Image, sn.image_callback)
+    #rospy.Subscriber("/stereo_camera/left/image_rect_color", Image, sn.image_callback)
+
 
     sn.create_network()
-    #sn.train_network()
+    sn.train_network()
     sn.deploy_network()
-    sn.live_analysis()
-    print("Training is over")
+    sn.image_analysis()
+    #sn.live_analysis()
     try:
         rospy.spin()
     except KeyboardInterrupt:image_analysis
