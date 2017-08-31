@@ -21,8 +21,10 @@ import numpy as np
 import theano.tensor as T
 import random
 import scipy.io as sio
+import glob
 np.random.seed(1337) # for reproducibility
 
+import keras
 from keras.layers.noise import GaussianNoise
 import keras.models as models
 from keras.layers.core import Layer, Dense, Dropout, Activation, Flatten, Reshape, Permute
@@ -55,26 +57,27 @@ class Segnet():
     """
     Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
     """
-    ros_path = '/home/deepblack/ros_ws/src/COSMOS/src/'
-    path = '/home/deepblack/ros_ws/src/COSMOS/src/CamVid/'
-    path_annotator = '/home/deepblack/Seg_Annotator/static/data/'
+    ros_path = '/home/jvincent/ros_ws/src/COSMOS/src/'
+    path = '/home/jvincent/ros_ws/src/COSMOS/src/CamVid/'
+    path_cityscape = '/home/jvincent/cityscape/'
+    path_annotator = '/home/jvincent/Seg_Annotator/static/data/'
     img_channels = 3
-    img_original_rows=480
-    img_original_cols=720
-    img_rows = 480
-    img_cols = 720
+    img_original_rows=1024
+    img_original_cols=2048
+    img_rows = 360
+    img_cols = 480
     epochs = 10
-    batch_size = 4
-    steps_per_epoch = 5
-    nb_class = 13
+    batch_size = 6
+    steps_per_epoch = 600
+    nb_class = 20
     nb_dim = 3
     frame = []
     start = 0
 
     #Model save variables
-    save_model_name= ros_path + 'model_ep10_bs1_st1_res720p_annotator_courge.hdf5'
-    run_model_name= ros_path + 'model_ep10_bs1_st1_res720p_annotator_courge.hdf5'
-    load_model_name= ros_path + 'model_ep10_bs5_st1000_res600_cw_synth_camvid.hdf5'
+    save_model_name= ros_path + 'cityscape_1.hdf5'
+    run_model_name= ros_path + 'cityscape_1.hdf5'
+    load_model_name= ros_path + 'cityscape_1.hdf5'
 
 
 
@@ -103,18 +106,18 @@ class Segnet():
     data_shape = img_rows*img_cols
 
     #BGR
-    void =	[0,0,0] #Black 0
-    Sky = [255,255,255] # White 1
-    Building = [0,0,255] # Red 2
-    Road = [255,0,0] # Blue 3
-    Sidewalk = [0,255,0] # Green 4
-    Fence = [255,0,255] # Violet 5
-    Vegetation = [255,255,0] # Yellow 6
-    Pole = [0,255,255] #7
-    Car = [128,0,64] #8
-    Sign = [128,128,192] #9
-    Pedestrian = [0,64,64] #10
-    Cyclist = [192,128,0] #11
+    #void =	[0,0,0] #Black 0
+    #Sky = [255,255,255] # White 1
+    #Building = [0,0,255] # Red 2
+    #Road = [255,0,0] # Blue 3
+    #Sidewalk = [0,255,0] # Green 4
+    #Fence = [255,0,255] # Violet 5
+    #Vegetation = [255,255,0] # Yellow 6
+    #Pole = [0,255,255] #7
+    #Car = [128,0,64] #8
+    #Sign = [128,128,192] #9
+    #Pedestrian = [0,64,64] #10
+    #Cyclist = [192,128,0] #11
 
     #BGR
     #void =	[0,0,0] #Black 0
@@ -131,7 +134,34 @@ class Segnet():
     #Cyclist = [0,0,0] #11
 
     #label_colours = np.array([Fence, Road, Building])
-    label_colours = np.array([void, Sky, Building, Road, Sidewalk, Fence, Vegetation, Pole, Car, Sign, Pedestrian, Cyclist])
+    #label_colours = np.array([void, Sky, Building, Road, Sidewalk, Fence, Vegetation, Pole, Car, Sign, Pedestrian, Cyclist])
+
+    #cityscape dataset
+    road = [128,64,128]
+    sidewalk = [244,35,232]
+    building = [70,70,70]
+    wall = [102,102,156]
+    fence = [190,153,153]
+    pole = [153,153,153]
+    trafficlight = [250, 170,30]
+    trafficsign = [220,220,0]
+    vegetation = [107,142,35]
+    terrain = [152,251,152]
+    sky = [70,130,180]
+    person = [220,20,60]
+    rider = [255,0,0]
+    car = [0,0,142]
+    truck = [0,0,70]
+    bus = [0,60,100]
+    train = [0,80,100]
+    motorcycle = [0,0,230]
+    bicycle = [119,11,32]
+    void = [0,0,0]
+
+    label_colours = np.array([road, sidewalk, building, wall, fence, pole, \
+        trafficlight, trafficsign, vegetation, terrain, sky, person, rider, \
+        car, truck, bus, train, motorcycle, bicycle])
+
 
     network = models.Sequential()
     bridge = CvBridge()
@@ -150,9 +180,12 @@ class Segnet():
         x = np.zeros([self.img_original_rows, self.img_original_cols, self.nb_class])
         for i in range(self.img_original_rows):
             for j in range(self.img_original_cols):
-                #if labels[i][j] == -1:
-                #    labels[i][j] = 0
-                x[i, j, labels[i][j]] = 1
+                #3 dim labels in cityscape dataset
+                if labels[i][j][0] > 18:
+                    x[i, j, 19] = 1
+                else:
+                    x[i, j, labels[i][j][0]] = 1
+
 
         return x
 
@@ -238,7 +271,8 @@ class Segnet():
         for i in range (len(txt)):
             print(i)
             end_crop=len(txt[i][0])-4
-            dest_lab = '/home/deepblack/SYNTHIA_RAND_CVPR16/GTTXT/' + txt[i][0][:end_crop] + '.txt'
+            dest_lab = '/home/jvincent/SYNTHIA_RAND_CVPR16/GTTXT/' + \
+                txt[i][0][:end_crop] + '.txt'
 
             with open(dest_lab) as f:
                 lab = [[int(num) for num in line.split()] for line in f]
@@ -249,6 +283,62 @@ class Segnet():
                     label_weight[y] = label_weight[y]+1
         print(label_weight)
         return label_weight
+
+    #Data generator for the cityscape_ dataset
+    def prep_data_cityscape(self):
+
+        while 1:
+            searchlabel = os.path.join( self.path_cityscape , "*" , "train" , "*"\
+                , "*_labelTrainIds.png" )
+            fileslabel = glob.glob(searchlabel)
+            fileslabel.sort()
+
+            train_data = []
+            train_label = []
+
+            for i in range(self.batch_size):
+                index= random.randint(0, len(fileslabel)-1)
+                t = fileslabel[index].split('/')
+                data = os.path.join( self.path_cityscape , "leftImg8bit" , "train" \
+                    , t[6] , t[7][0:(len(t[6])+15)]+"leftImg8bit.png" )
+                train_data.append(self.resize_input_data(np.rollaxis(normalized\
+                    (cv2.imread(data)),2)))
+                train_label.append(self.resize_input_binary_label(self.binarylab\
+                    (cv2.imread(fileslabel[index]))))
+                #train_data_array=np.array(train_data)
+                #train_label_array=np.array(train_label)
+
+            #nb_data=train_data_array.shape[0]
+            yield(np.array(train_data), np.reshape(np.array(train_label),\
+                (self.batch_size,self.data_shape,self.nb_class)))
+
+    def prep_val_cityscape(self):
+
+        while 1:
+            searchlabel = os.path.join( self.path_cityscape , "*" , "val" , "*"\
+                , "*_gtCoarse_labelTrainIds.png" )
+            fileslabel = glob.glob(searchlabel)
+            fileslabel.sort()
+
+            train_data = []
+            train_label = []
+
+            for i in range(self.batch_size):
+                index= random.randint(0, len(fileslabel)-1)
+                t = fileslabel[index].split('/')
+                data = os.path.join( self.path_cityscape , "leftImg8bit" , "val"\
+                    , t[6] , t[7][0:(len(t[6])+15)]+"leftImg8bit.png" )
+                train_data.append(self.resize_input_data(np.rollaxis(normalized\
+                    (cv2.imread(data)),2)))
+                train_label.append(self.resize_input_binary_label(self.binarylab\
+                    (cv2.imread(fileslabel[index]))))
+                #train_data_array=np.array(train_data)
+                #train_label_array=np.array(train_label)
+
+            #nb_data=train_data_array.shape[0]
+            yield(np.array(train_data), np.reshape(np.array(train_label),\
+                (self.batch_size,self.data_shape,self.nb_class)))
+
 
     #Data generator for the synthia dataset
     def prep_data_synthia(self):
@@ -262,15 +352,20 @@ class Segnet():
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
                 end_crop=len(txt[index][0])-4
-                dest_lab = '/home/deepblack/SYNTHIA_RAND_CVPR16/GTTXT/' + txt[index][0][:end_crop] + '.txt'
-                train_data.append(np.rollaxis(normalized(cv2.imread('/home/deepblack/SYNTHIA_RAND_CVPR16/RGB/' + txt[index][0][:])),2))
+                dest_lab = '/home/jvincent/SYNTHIA_RAND_CVPR16/GTTXT/' + \
+                    txt[index][0][:end_crop] + '.txt'
+                train_data.append(np.rollaxis(normalized(cv2.imread\
+                    ('/home/jvincent/SYNTHIA_RAND_CVPR16/RGB/' + txt[index][0][:])),2))
                 with open(dest_lab) as f:
                     lab = [[int(num) for num in line.split()] for line in f]
                 train_label.append(self.binarylab(lab))
-                train_data_array=np.array(train_data)[:,:,self.img_rows_low:self.img_rows_high,self.img_cols_low:self.img_cols_high]
-                train_label_array=np.array(train_label)[:,self.img_rows_low:self.img_rows_high,self.img_cols_low:self.img_cols_high,:]
+                train_data_array=np.array(train_data)[:,:,self.img_rows_low:\
+                    self.img_rows_high,self.img_cols_low:self.img_cols_high]
+                train_label_array=np.array(train_label)[:,self.img_rows_low:\
+                    self.img_rows_high,self.img_cols_low:self.img_cols_high,:]
             nb_data=train_data_array.shape[0]
-            yield(train_data_array, np.reshape(train_label_array,(nb_data,self.data_shape,self.nb_class)))
+            yield(train_data_array, np.reshape(train_label_array,\
+                (nb_data,self.data_shape,self.nb_class)))
             f.close()
 
     #Prep data for the camvid dataset
@@ -283,10 +378,15 @@ class Segnet():
                 train_label = []
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
-                train_data.append(self.resize_input_data(np.rollaxis(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src/' + txt[index][0][7:]),2)))
-                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src/' + txt[index][1][7:][:-1])[:,:,0])))
+                train_data.append(self.resize_input_data(np.rollaxis(\
+                    cv2.imread('/home/jvincent/ros_ws/src/COSMOS/src/' \
+                        + txt[index][0][7:]),2)))
+                train_label.append(self.resize_input_binary_label(\
+                    self.binarylab(cv2.imread('/home/jvincent/ros_ws/src/COSMOS/src/' \
+                        + txt[index][1][7:][:-1])[:,:,0])))
 
-            yield(np.array(train_data), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
+            yield(np.array(train_data), np.reshape(np.array(train_label),\
+                (self.batch_size,self.data_shape,self.nb_class)))
             f.close()
 
     def prep_val_camvid(self):
@@ -298,8 +398,8 @@ class Segnet():
                 val_label = []
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
-                val_data.append(self.resize_input_data(np.rollaxis(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src' + txt[index][0][7:]),2)))
-                val_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src' + txt[index][1][7:][:-1])[:,:,0])))
+                val_data.append(self.resize_input_data(np.rollaxis(cv2.imread('/home/jvincent/ros_ws/src/COSMOS/src' + txt[index][0][7:]),2)))
+                val_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread('/home/jvincent/ros_ws/src/COSMOS/src' + txt[index][1][7:][:-1])[:,:,0])))
 
             yield(np.array(val_data), np.reshape(np.array(val_label),(self.batch_size,self.data_shape,self.nb_class)))
             f.close()
@@ -307,7 +407,7 @@ class Segnet():
     #Prep data for the nuy dataset
     def prep_data_nyu(self):
         while 1:
-            data = sio.loadmat('/home/deepblack/ros_ws/src/COSMOS/src/' + 'nyu_dataset.mat')
+            data = sio.loadmat('/home/jvincent/ros_ws/src/COSMOS/src/' + 'nyu_dataset.mat')
             labels = data['labels']
             images = np.rollaxis(data['images'],2)
             train_data = []
@@ -421,17 +521,53 @@ class Segnet():
         self.network.add(Reshape((self.nb_class, self.data_shape)))
         self.network.add(Permute((2, 1)))
         self.network.add(Activation('softmax'))
-        from keras.optimizers import SGD
-        optimizer = SGD(lr=0.01, momentum=0.8, decay=0., nesterov=False)
+        from keras.optimizers import SGD, Adam
+        #optimizer = SGD(lr=0.01, momentum=0.8, decay=0.1, nesterov=False)
+        optimizer = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
         self.network.compile(loss="categorical_crossentropy", optimizer=optimizer)
 
     def train_network(self):
         print("------------TRAINING NETWORK--------------")
+
+        #Initialise tensorboard
+        #tbcallback = keras.callbacks.TensorBoard(log_dir='./logs', \
+        #    histogram_freq=1, write_graph=True, \
+        #    write_images=True)
         #self.network.load_weights(self.load_model_name)
-        self.network.fit_generator(self.prep_data_annotator(), epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=1 , class_weight = self.class_weighting_courge)#, validation_data=self.prep_val_camvid(), validation_steps=10, class_weight=self.class_weighting_camvid)
+
+        logcb = keras.callbacks.ModelCheckpoint(\
+        "/home/jvincent/ros_ws/src/COSMOS/src/weight/weights.{epoch:02d}-{val_loss:.2f}.hdf5", \
+            monitor='val_loss', verbose=0, save_best_only=False, save_weights_only=False, \
+            mode='auto', period=1)
+
+        escb = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.1, \
+            patience=3, verbose=1, mode='auto')
+
+        history = self.network.fit_generator(self.prep_data_cityscape(), \
+        epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, \
+        validation_data=self.prep_val_cityscape(), validation_steps=100, \
+        verbose=1, callbacks=[logcb, escb])
+        #, validation_data=self.prep_val_camvid(), validation_steps=10, class_weight=self.class_weighting_camvid)
         #history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
         #, validation_data=(X_test, X_test))
         self.network.save_weights(self.save_model_name)
+        print(history.history.keys())
+        # summarize history for accuracy
+        #plt.plot(history.history['acc'])
+        #plt.plot(history.history['val_acc'])
+        #plt.title('model accuracy')
+        #plt.ylabel('accuracy')
+        #plt.xlabel('epoch')
+        #plt.legend(['train', 'test'], loc='upper left')
+        #plt.show()
+        # summarize history for loss
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        plt.show()
 
     def deploy_network(self):
 
@@ -494,7 +630,7 @@ class Segnet():
         #Image analysis
         import os
 
-        #data = sio.loadmat('/home/deepblack/ros_ws/src/COSMOS/src/' +'nyu_dataset.mat')
+        #data = sio.loadmat('/home/jvincent/ros_ws/src/COSMOS/src/' +'nyu_dataset.mat')
         #labels = data['labels']
         #images = np.rollaxis(data['images'],2)
         #img_label = self.visualize(labels[:,:,55])
@@ -594,8 +730,8 @@ if __name__ == '__main__':
 
     sn.create_network()
     sn.train_network()
-    sn.deploy_network()
-    sn.image_analysis()
+    #sn.deploy_network()
+    #sn.image_analysis()
     #sn.live_analysis()
     try:
         rospy.spin()
