@@ -39,6 +39,8 @@ from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 import matplotlib.pyplot as plt
 from moviepy.editor import VideoFileClip
+from skimage import color, exposure, transform
+
 np.set_printoptions(threshold=np.nan)
 #General functoins
 #Normaluzing function
@@ -58,6 +60,7 @@ class Segnet():
     Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
     """
     ros_path = '/home/jvincent/ros_ws/src/COSMOS/src/'
+    weights_path = '/home/jvincent/ros_ws/src/COSMOS/src/weight/'
     path = '/home/jvincent/ros_ws/src/COSMOS/src/CamVid/'
     path_cityscape = '/home/jvincent/cityscape/'
     path_annotator = '/home/jvincent/Seg_Annotator/static/data/'
@@ -75,9 +78,9 @@ class Segnet():
     start = 0
 
     #Model save variables
-    save_model_name= ros_path + 'cityscape_1.hdf5'
-    run_model_name= ros_path + 'cityscape_1.hdf5'
-    load_model_name= ros_path + 'cityscape_1.hdf5'
+    save_model_name= weights_path + 'cityscape_1.hdf5'
+    run_model_name= weights_path + 'weights.00-1.53.hdf5'
+    load_model_name= weights_path + 'weights.00-1.53.hdf5'
 
 
 
@@ -185,9 +188,18 @@ class Segnet():
                     x[i, j, 19] = 1
                 else:
                     x[i, j, labels[i][j][0]] = 1
-
-
         return x
+
+    def preprocess_img(self, img):
+        # Histogram normalization in v channel
+        hsv = color.rgb2hsv(img)
+        hsv[:, :, 2] = exposure.equalize_hist(hsv[:, :, 2])
+        img = color.hsv2rgb(hsv)
+
+        # rescale to standard size
+        img = transform.resize(img, (self.img_rows,self.img_cols))
+
+        return img
 
     def resize_input_binary_label(self, input_img):
         x = np.zeros([self.img_rows, self.img_cols, self.nb_class])
@@ -301,8 +313,9 @@ class Segnet():
                 t = fileslabel[index].split('/')
                 data = os.path.join( self.path_cityscape , "leftImg8bit" , "train" \
                     , t[6] , t[7][0:(len(t[6])+15)]+"leftImg8bit.png" )
-                train_data.append(self.resize_input_data(np.rollaxis(normalized\
-                    (cv2.imread(data)),2)))
+                train_data.append(np.rollaxis(self.preprocess_img\
+                    (cv2.imread(data)),2))
+
                 train_label.append(self.resize_input_binary_label(self.binarylab\
                     (cv2.imread(fileslabel[index]))))
                 #train_data_array=np.array(train_data)
@@ -328,8 +341,8 @@ class Segnet():
                 t = fileslabel[index].split('/')
                 data = os.path.join( self.path_cityscape , "leftImg8bit" , "val"\
                     , t[6] , t[7][0:(len(t[6])+15)]+"leftImg8bit.png" )
-                train_data.append(self.resize_input_data(np.rollaxis(normalized\
-                    (cv2.imread(data)),2)))
+                train_data.append(np.rollaxis(self.preprocess_img\
+                    (cv2.imread(data)),2))
                 train_label.append(self.resize_input_binary_label(self.binarylab\
                     (cv2.imread(fileslabel[index]))))
                 #train_data_array=np.array(train_data)
@@ -639,7 +652,7 @@ class Segnet():
         #print(images_data)
         #cv2.imshow('Originali', images_data)
 
-        img = cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'test.jpg')
+        img = cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'test.png')
         img_prep = []
         print(img.shape)
         #img = img[:,:,[2,0,1]]
@@ -648,6 +661,7 @@ class Segnet():
         img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
         output = self.network.predict_proba(np.array(img_prep)[1:2])
         pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows, self.img_cols)))
+        cv2.imshow('Input', self.preprocess_img(img))
         cv2.imshow('Prediction', pred)
         cv2.imshow('Original', img)
         cv2.waitKey(0)
@@ -729,9 +743,9 @@ if __name__ == '__main__':
 
 
     sn.create_network()
-    sn.train_network()
-    #sn.deploy_network()
-    #sn.image_analysis()
+    #sn.train_network()
+    sn.deploy_network()
+    sn.image_analysis()
     #sn.live_analysis()
     try:
         rospy.spin()
