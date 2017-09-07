@@ -79,8 +79,8 @@ class Segnet():
 
     #Model save variables
     save_model_name= weights_path + 'cityscape_1.hdf5'
-    run_model_name= weights_path + 'weights.00-1.53.hdf5'
-    load_model_name= weights_path + 'weights.00-1.53.hdf5'
+    run_model_name= weights_path + 'weights.05-0.76.hdf5'
+    load_model_name= weights_path + 'weights.05-0.76.hdf5'
 
 
 
