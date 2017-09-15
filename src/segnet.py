@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image, CompressedImage
 
 # Comment to use tensorflow
 os.environ['KERAS_BACKEND'] = 'theano'
-os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu0,floatX=float32,optimizer=fast_compile'
+os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu1,floatX=float32,optimizer=fast_compile'
 
 print("------------INITIALIZE DEPENDENCIES--------------")
 
@@ -59,18 +59,18 @@ class Segnet():
     """
     Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
     """
-    ros_path = '/home/jvincent/ros_ws/src/COSMOS/src/'
-    weights_path = '/home/jvincent/ros_ws/src/COSMOS/src/weight/'
-    path = '/home/jvincent/ros_ws/src/COSMOS/src/CamVid/'
-    path_cityscape = '/home/jvincent/cityscape/'
-    path_annotator = '/home/jvincent/Seg_Annotator/static/data/'
+    ros_path = '/home/deepblack/ros_ws/src/COSMOS/src/'
+    weights_path = '/home/deepblack/ros_ws/src/COSMOS/src/weight/train3/'
+    path = '/home/deepblack/ros_ws/src/COSMOS/src/CamVid/'
+    path_cityscape = '/home/deepblack/cityscape/'
+    path_annotator = '/home/deepblack/Seg_Annotator/static/data/'
     img_channels = 3
     img_original_rows=1024
     img_original_cols=2048
     img_rows = 360
     img_cols = 480
     epochs = 10
-    batch_size = 6
+    batch_size = 10
     steps_per_epoch = 600
     nb_class = 20
     nb_dim = 3
@@ -78,9 +78,9 @@ class Segnet():
     start = 0
 
     #Model save variables
-    save_model_name= weights_path + 'cityscape_1.hdf5'
-    run_model_name= weights_path + 'weights.05-0.76.hdf5'
-    load_model_name= weights_path + 'weights.05-0.76.hdf5'
+    save_model_name= weights_path + 'cityscape_4.hdf5'
+    run_model_name= weights_path + 'weights.03-0.54.hdf5'
+    load_model_name= '/home/deepblack/ros_ws/src/COSMOS/src/weight/train1/cityscape_1.hdf5'
 
 
 
@@ -283,7 +283,7 @@ class Segnet():
         for i in range (len(txt)):
             print(i)
             end_crop=len(txt[i][0])-4
-            dest_lab = '/home/jvincent/SYNTHIA_RAND_CVPR16/GTTXT/' + \
+            dest_lab = '/home/deepblack/SYNTHIA_RAND_CVPR16/GTTXT/' + \
                 txt[i][0][:end_crop] + '.txt'
 
             with open(dest_lab) as f:
@@ -311,8 +311,11 @@ class Segnet():
             for i in range(self.batch_size):
                 index= random.randint(0, len(fileslabel)-1)
                 t = fileslabel[index].split('/')
+
                 data = os.path.join( self.path_cityscape , "leftImg8bit" , "train" \
                     , t[6] , t[7][0:(len(t[6])+15)]+"leftImg8bit.png" )
+                #print(fileslabel[index])
+                #print(data)
                 train_data.append(np.rollaxis(self.preprocess_img\
                     (cv2.imread(data)),2))
 
@@ -365,10 +368,10 @@ class Segnet():
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
                 end_crop=len(txt[index][0])-4
-                dest_lab = '/home/jvincent/SYNTHIA_RAND_CVPR16/GTTXT/' + \
+                dest_lab = '/home/deepblack/SYNTHIA_RAND_CVPR16/GTTXT/' + \
                     txt[index][0][:end_crop] + '.txt'
                 train_data.append(np.rollaxis(normalized(cv2.imread\
-                    ('/home/jvincent/SYNTHIA_RAND_CVPR16/RGB/' + txt[index][0][:])),2))
+                    ('/home/deepblack/SYNTHIA_RAND_CVPR16/RGB/' + txt[index][0][:])),2))
                 with open(dest_lab) as f:
                     lab = [[int(num) for num in line.split()] for line in f]
                 train_label.append(self.binarylab(lab))
@@ -392,10 +395,10 @@ class Segnet():
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
                 train_data.append(self.resize_input_data(np.rollaxis(\
-                    cv2.imread('/home/jvincent/ros_ws/src/COSMOS/src/' \
+                    cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src/' \
                         + txt[index][0][7:]),2)))
                 train_label.append(self.resize_input_binary_label(\
-                    self.binarylab(cv2.imread('/home/jvincent/ros_ws/src/COSMOS/src/' \
+                    self.binarylab(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src/' \
                         + txt[index][1][7:][:-1])[:,:,0])))
 
             yield(np.array(train_data), np.reshape(np.array(train_label),\
@@ -411,8 +414,8 @@ class Segnet():
                 val_label = []
             for i in range(self.batch_size):
                 index= random.randint(0, len(txt)-1)
-                val_data.append(self.resize_input_data(np.rollaxis(cv2.imread('/home/jvincent/ros_ws/src/COSMOS/src' + txt[index][0][7:]),2)))
-                val_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread('/home/jvincent/ros_ws/src/COSMOS/src' + txt[index][1][7:][:-1])[:,:,0])))
+                val_data.append(self.resize_input_data(np.rollaxis(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src' + txt[index][0][7:]),2)))
+                val_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src' + txt[index][1][7:][:-1])[:,:,0])))
 
             yield(np.array(val_data), np.reshape(np.array(val_label),(self.batch_size,self.data_shape,self.nb_class)))
             f.close()
@@ -420,7 +423,7 @@ class Segnet():
     #Prep data for the nuy dataset
     def prep_data_nyu(self):
         while 1:
-            data = sio.loadmat('/home/jvincent/ros_ws/src/COSMOS/src/' + 'nyu_dataset.mat')
+            data = sio.loadmat('/home/deepblack/ros_ws/src/COSMOS/src/' + 'nyu_dataset.mat')
             labels = data['labels']
             images = np.rollaxis(data['images'],2)
             train_data = []
@@ -546,20 +549,20 @@ class Segnet():
         #tbcallback = keras.callbacks.TensorBoard(log_dir='./logs', \
         #    histogram_freq=1, write_graph=True, \
         #    write_images=True)
-        #self.network.load_weights(self.load_model_name)
+        self.network.load_weights(self.load_model_name)
 
         logcb = keras.callbacks.ModelCheckpoint(\
-        "/home/jvincent/ros_ws/src/COSMOS/src/weight/weights.{epoch:02d}-{val_loss:.2f}.hdf5", \
+        "/home/deepblack/ros_ws/src/COSMOS/src/weight/train3/weights.{epoch:02d}-{val_loss:.2f}.hdf5", \
             monitor='val_loss', verbose=0, save_best_only=False, save_weights_only=False, \
             mode='auto', period=1)
 
-        escb = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.1, \
-            patience=3, verbose=1, mode='auto')
+        #escb = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.1, \
+        #    patience=3, verbose=1, mode='auto')
 
         history = self.network.fit_generator(self.prep_data_cityscape(), \
         epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, \
         validation_data=self.prep_val_cityscape(), validation_steps=100, \
-        verbose=1, callbacks=[logcb, escb])
+        verbose=1, callbacks=[logcb])
         #, validation_data=self.prep_val_camvid(), validation_steps=10, class_weight=self.class_weighting_camvid)
         #history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
         #, validation_data=(X_test, X_test))
@@ -643,7 +646,7 @@ class Segnet():
         #Image analysis
         import os
 
-        #data = sio.loadmat('/home/jvincent/ros_ws/src/COSMOS/src/' +'nyu_dataset.mat')
+        #data = sio.loadmat('/home/deepblack/ros_ws/src/COSMOS/src/' +'nyu_dataset.mat')
         #labels = data['labels']
         #images = np.rollaxis(data['images'],2)
         #img_label = self.visualize(labels[:,:,55])
@@ -652,7 +655,7 @@ class Segnet():
         #print(images_data)
         #cv2.imshow('Originali', images_data)
 
-        img = cv2.imread(os.getcwd() + '/ros_ws/src/COSMOS/src/' + 'test.png')
+        img = cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src/' + 'test2.png')
         img_prep = []
         print(img.shape)
         #img = img[:,:,[2,0,1]]
