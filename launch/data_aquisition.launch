@@ -1,0 +1,7 @@
+<launch>
+  <include file="$(find velodyne_pointcloud)/launch/VLP16_points.launch"/>
+  <include file="$(find cosmos)/launch/cloud_seg.launch"/>
+  <node pkg="rosbag" type="record" name="rosbag_record"
+      args="record -o /home/deep/data_outdoor/test1 -a --split --duration=10m"/>
+
+</launch>

@@ -10,7 +10,8 @@ from sensor_msgs.msg import Image, CompressedImage
 
 # Comment to use tensorflow
 os.environ['KERAS_BACKEND'] = 'theano'
-os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu1,floatX=float32,optimizer=fast_compile'
+os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=gpu0,floatX=float32,optimizer=fast_compile'
+#import tensorflow as tf
 
 print("------------INITIALIZE DEPENDENCIES--------------")
 
@@ -30,8 +31,14 @@ import keras.models as models
 from keras.layers.core import Layer, Dense, Dropout, Activation, Flatten, Reshape, Permute
 from keras.layers.convolutional import Conv2D, MaxPooling2D, UpSampling2D, ZeroPadding2D
 from keras.layers.normalization import BatchNormalization
+from keras.layers import Input, merge, concatenate, MaxPooling2D, UpSampling2D, Cropping2D, ZeroPadding2D
+from keras.layers.merge import concatenate
+from keras.layers.advanced_activations import ELU
+from keras.models import Model
 
 from keras import backend as K
+#K.set_image_dim_ordering('tf')
+#print(K.image_data_format())
 K.set_image_data_format("channels_first")
 
 import cv2
@@ -60,7 +67,7 @@ class Segnet():
     Tested configuration : 400x400:bs12, 600x600:bs5, 720x960:bs2
     """
     ros_path = '/home/deepblack/ros_ws/src/COSMOS/src/'
-    weights_path = '/home/deepblack/ros_ws/src/COSMOS/src/weight/train3/'
+    weights_path = '/home/deepblack/ros_ws/src/COSMOS/src/weight/'
     path = '/home/deepblack/ros_ws/src/COSMOS/src/CamVid/'
     path_cityscape = '/home/deepblack/cityscape/'
     path_annotator = '/home/deepblack/Seg_Annotator/static/data/'
@@ -69,18 +76,20 @@ class Segnet():
     img_original_cols=2048
     img_rows = 360
     img_cols = 480
+    img_shape = 360
     epochs = 10
-    batch_size = 10
-    steps_per_epoch = 600
+    batch_size = 6
+    nb_train_data = 3000
+    steps_per_epoch = nb_train_data/batch_size
     nb_class = 20
     nb_dim = 3
     frame = []
     start = 0
 
     #Model save variables
-    save_model_name= weights_path + 'cityscape_4.hdf5'
-    run_model_name= weights_path + 'weights.03-0.54.hdf5'
-    load_model_name= '/home/deepblack/ros_ws/src/COSMOS/src/weight/train1/cityscape_1.hdf5'
+    save_model_name= weights_path + 'train5/cityscape_5.hdf5'
+    run_model_name= weights_path + 'train5/cityscape_5.hdf5'
+    load_model_name= weights_path + 'train5/cityscape_5.hdf5'
 
 
 
@@ -161,9 +170,31 @@ class Segnet():
     bicycle = [119,11,32]
     void = [0,0,0]
 
+    #For annotator
+    # road = [0,0,19]
+    # sidewalk = [0,0,1]
+    # building = [0,0,2]
+    # wall = [0,0,3]
+    # fence = [0,0,4]
+    # pole = [0,0,5]
+    # trafficlight = [0,0,6]
+    # trafficsign = [0,0,7]
+    # vegetation = [0,0,8]
+    # terrain = [0,0,9]
+    # sky = [0,0,10]
+    # person = [0,0,11]
+    # rider = [0,0,12]
+    # car = [0,0,13]
+    # truck = [0,0,14]
+    # bus = [0,0,15]
+    # train = [0,0,16]
+    # motorcycle = [0,0,17]
+    # bicycle = [0,0,18]
+    # void = [0,0,0]
+
     label_colours = np.array([road, sidewalk, building, wall, fence, pole, \
         trafficlight, trafficsign, vegetation, terrain, sky, person, rider, \
-        car, truck, bus, train, motorcycle, bicycle])
+        car, truck, bus, train, motorcycle, bicycle, void])
 
 
     network = models.Sequential()
@@ -171,6 +202,7 @@ class Segnet():
 
     def __init__(self):
         self.image_pub = rospy.Publisher("image_seg", Image)
+        self.image_pub_raw = rospy.Publisher("image_raw", Image)
 
     def resize_input_data(self, input_img):
         x = np.zeros([self.nb_dim, self.img_rows, self.img_cols])
@@ -300,7 +332,7 @@ class Segnet():
     def prep_data_cityscape(self):
 
         while 1:
-            searchlabel = os.path.join( self.path_cityscape , "*" , "train" , "*"\
+            searchlabel = os.path.join( self.path_cityscape , "gtFine" , "train" , "*"\
                 , "*_labelTrainIds.png" )
             fileslabel = glob.glob(searchlabel)
             fileslabel.sort()
@@ -311,11 +343,8 @@ class Segnet():
             for i in range(self.batch_size):
                 index= random.randint(0, len(fileslabel)-1)
                 t = fileslabel[index].split('/')
-
                 data = os.path.join( self.path_cityscape , "leftImg8bit" , "train" \
                     , t[6] , t[7][0:(len(t[6])+15)]+"leftImg8bit.png" )
-                #print(fileslabel[index])
-                #print(data)
                 train_data.append(np.rollaxis(self.preprocess_img\
                     (cv2.imread(data)),2))
 
@@ -323,36 +352,37 @@ class Segnet():
                     (cv2.imread(fileslabel[index]))))
                 #train_data_array=np.array(train_data)
                 #train_label_array=np.array(train_label)
+            #print(np.array(train_data).shape)
+            #print(np.rollaxis(np.array(train_data),1,4).shape)
 
-            #nb_data=train_data_array.shape[0]
-            yield(np.array(train_data), np.reshape(np.array(train_label),\
+            yield(np.array(train_data) , np.reshape(np.array(train_label),\
                 (self.batch_size,self.data_shape,self.nb_class)))
 
     def prep_val_cityscape(self):
 
         while 1:
-            searchlabel = os.path.join( self.path_cityscape , "*" , "val" , "*"\
-                , "*_gtCoarse_labelTrainIds.png" )
+            searchlabel = os.path.join( self.path_cityscape , "gtFine" , "val" , "*"\
+                , "*_labelTrainIds.png" )
             fileslabel = glob.glob(searchlabel)
             fileslabel.sort()
 
-            train_data = []
-            train_label = []
+            val_data = []
+            val_label = []
 
             for i in range(self.batch_size):
                 index= random.randint(0, len(fileslabel)-1)
                 t = fileslabel[index].split('/')
                 data = os.path.join( self.path_cityscape , "leftImg8bit" , "val"\
                     , t[6] , t[7][0:(len(t[6])+15)]+"leftImg8bit.png" )
-                train_data.append(np.rollaxis(self.preprocess_img\
+                val_data.append(np.rollaxis(self.preprocess_img\
                     (cv2.imread(data)),2))
-                train_label.append(self.resize_input_binary_label(self.binarylab\
+                val_label.append(self.resize_input_binary_label(self.binarylab\
                     (cv2.imread(fileslabel[index]))))
-                #train_data_array=np.array(train_data)
-                #train_label_array=np.array(train_label)
+                #val_data_array=np.array(val_data)
+                #val_label_array=np.array(val_label)
 
-            #nb_data=train_data_array.shape[0]
-            yield(np.array(train_data), np.reshape(np.array(train_label),\
+            #nb_data=val_data_array.shape[0]
+            yield(np.array(val_data), np.reshape(np.array(val_label),\
                 (self.batch_size,self.data_shape,self.nb_class)))
 
 
@@ -460,6 +490,82 @@ class Segnet():
             yield(np.array(train_data), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
             f.close()
 
+    def get_crop_shape(self, target, refer):
+        # width, the 3rd dimension
+        cw = (target.get_shape()[2] - refer.get_shape()[2]).value
+        assert (cw >= 0)
+        if cw % 2 != 0:
+            cw1, cw2 = int(cw/2), int(cw/2) + 1
+        else:
+            cw1, cw2 = int(cw/2), int(cw/2)
+        # height, the 2nd dimension
+        ch = (target.get_shape()[1] - refer.get_shape()[1]).value
+        assert (ch >= 0)
+        if ch % 2 != 0:
+            ch1, ch2 = int(ch/2), int(ch/2) + 1
+        else:
+            ch1, ch2 = int(ch/2), int(ch/2)
+
+        return (ch1, ch2), (cw1, cw2)
+
+    def get_unet(self):
+
+        concat_axis = 3
+        inputs = Input((self.img_shape,self.img_shape,self.nb_dim))
+
+        conv1 = Conv2D(32, (3, 3), activation='relu', padding='same', name='conv1_1')(inputs)
+        conv1 = Conv2D(32, (3, 3), activation='relu', padding='same')(conv1)
+        pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+        conv2 = Conv2D(64, (3, 3), activation='relu', padding='same')(pool1)
+        conv2 = Conv2D(64, (3, 3), activation='relu', padding='same')(conv2)
+        pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+
+        conv3 = Conv2D(128, (3, 3), activation='relu', padding='same')(pool2)
+        conv3 = Conv2D(128, (3, 3), activation='relu', padding='same')(conv3)
+        pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+
+        conv4 = Conv2D(256, (3, 3), activation='relu', padding='same')(pool3)
+        conv4 = Conv2D(256, (3, 3), activation='relu', padding='same')(conv4)
+        pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
+
+        conv5 = Conv2D(512, (3, 3), activation='relu', padding='same')(pool4)
+        conv5 = Conv2D(512, (3, 3), activation='relu', padding='same')(conv5)
+
+        up_conv5 = UpSampling2D(size=(2, 2))(conv5)
+        ch, cw = self.get_crop_shape(conv4, up_conv5)
+        crop_conv4 = Cropping2D(cropping=(ch,cw))(conv4)
+        up6 = concatenate([up_conv5, crop_conv4], axis=concat_axis)
+        conv6 = Conv2D(256, (3, 3), activation='relu', padding='same')(up6)
+        conv6 = Conv2D(256, (3, 3), activation='relu', padding='same')(conv6)
+
+        up_conv6 = UpSampling2D(size=(2, 2))(conv6)
+        ch, cw = self.get_crop_shape(conv3, up_conv6)
+        crop_conv3 = Cropping2D(cropping=(ch,cw))(conv3)
+        up7 = concatenate([up_conv6, crop_conv3], axis=concat_axis)
+        conv7 = Conv2D(128, (3, 3), activation='relu', padding='same')(up7)
+        conv7 = Conv2D(128, (3, 3), activation='relu', padding='same')(conv7)
+
+        up_conv7 = UpSampling2D(size=(2, 2))(conv7)
+        ch, cw = self.get_crop_shape(conv2, up_conv7)
+        crop_conv2 = Cropping2D(cropping=(ch,cw))(conv2)
+        up8 = concatenate([up_conv7, crop_conv2], axis=concat_axis)
+        conv8 = Conv2D(64, (3, 3), activation='relu', padding='same')(up8)
+        conv8 = Conv2D(64, (3, 3), activation='relu', padding='same')(conv8)
+
+        up_conv8 = UpSampling2D(size=(2, 2))(conv8)
+        ch, cw = self.get_crop_shape(conv1, up_conv8)
+        crop_conv1 = Cropping2D(cropping=(ch,cw))(conv1)
+        up9 = concatenate([up_conv8, crop_conv1], axis=concat_axis)
+        conv9 = Conv2D(32, (3, 3), activation='relu', padding='same')(up9)
+        conv9 = Conv2D(32, (3, 3), activation='relu', padding='same')(conv9)
+
+        ch, cw = self.get_crop_shape(inputs, conv9)
+        conv9 = ZeroPadding2D(padding=((ch[0], ch[1]), (cw[0], cw[1])))(conv9)
+        conv10 = Conv2D(self.nb_class, (1, 1))(conv9)
+
+        model = Model(inputs=inputs, outputs=conv10)
+
+        return model
 
     #Encoding architecture
     def create_encoding_layers(self):
@@ -519,7 +625,8 @@ class Segnet():
             BatchNormalization()
         ]
 
-    def create_network(self):
+
+    def create_segnet(self):
         #Model creation
         print("------------CREATING NETWORK--------------")
         # Add a noise layer to get a denoising network. This helps avoid overfitting
@@ -539,7 +646,18 @@ class Segnet():
         self.network.add(Activation('softmax'))
         from keras.optimizers import SGD, Adam
         #optimizer = SGD(lr=0.01, momentum=0.8, decay=0.1, nesterov=False)
-        optimizer = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+        #optimizer = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+        optimizer = Adam()
+        self.network.compile(loss="categorical_crossentropy", optimizer=optimizer)
+
+
+    def create_network(self):
+        #Model creation
+        print("------------CREATING NETWORK--------------")
+        from keras.optimizers import SGD, Adam
+        self.network = self.get_unet()
+        #optimizer = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+        optimizer = Adam()
         self.network.compile(loss="categorical_crossentropy", optimizer=optimizer)
 
     def train_network(self):
@@ -552,7 +670,7 @@ class Segnet():
         self.network.load_weights(self.load_model_name)
 
         logcb = keras.callbacks.ModelCheckpoint(\
-        "/home/deepblack/ros_ws/src/COSMOS/src/weight/train3/weights.{epoch:02d}-{val_loss:.2f}.hdf5", \
+        "/home/deepblack/ros_ws/src/COSMOS/src/weight/train5/weights.{epoch:02d}-{val_loss:.2f}.hdf5", \
             monitor='val_loss', verbose=0, save_best_only=False, save_weights_only=False, \
             mode='auto', period=1)
 
@@ -589,9 +707,7 @@ class Segnet():
 
         print("------------DEPLOYING NETWORK--------------")
 
-        #Deployment variables
-        d_path = self.run_model_name
-        self.network.load_weights(d_path)
+        self.network.load_weights( self.run_model_name)
 
     #Visualizing function
     def visualize(self, temp):
@@ -602,11 +718,34 @@ class Segnet():
             r[temp==l]=self.label_colours[l,0]
             g[temp==l]=self.label_colours[l,1]
             b[temp==l]=self.label_colours[l,2]
+            #if l == 19:
+            #    r[temp==l]=0
+            #    g[temp==l]=0
+            #    b[temp==l]=0
+
 
         rgb = np.zeros((temp.shape[0], temp.shape[1], 3))
         rgb[:,:,0] = (r)#[:,:,0]
         rgb[:,:,1] = (g)#[:,:,1]
         rgb[:,:,2] = (b)#[:,:,2]
+
+        return rgb.astype('uint8')
+
+    def visualize_annot(self, temp):
+        r = temp.copy()
+        g = temp.copy()
+        b = temp.copy()
+        for l in range(len(self.label_colours)):
+            r[temp==l]=0#self.label_colours[l,0]
+            g[temp==l]=0#self.label_colours[l,1]
+            b[temp==l]=self.label_colours[l,2]
+
+
+        rgb = np.zeros((temp.shape[0], temp.shape[1], 3))
+        rgb[:,:,0] = (0)#[:,:,0]
+        rgb[:,:,1] = (0)#[:,:,1]
+        rgb[:,:,2] = (b)#[:,:,2]
+
         return rgb.astype('uint8')
 
     def visualize_colormap(self, temp):
@@ -642,6 +781,26 @@ class Segnet():
         rgb[:,:,2] = (b)#[:,:,2]
         return rgb
 
+    def image_batch(self):
+        searchlabel = os.path.join( self.path_annotator , "images" , "*.png" )
+        fileslabel = glob.glob(searchlabel)
+        fileslabel.sort()
+        for i in range(len(fileslabel)):
+            img = cv2.imread(fileslabel[i])
+            img_prep = []
+            #img = img[:,:,[2,0,1]]
+            img = cv2.resize(img, (self.img_cols, self.img_rows))
+            img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
+            img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
+            output = self.network.predict_proba(np.array(img_prep)[1:2])
+            pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows, self.img_cols)))
+            t = fileslabel[i].split('/')
+
+            name="/"+t[1]+"/"+t[2]+"/"+t[3]+"/"+t[4]+"/"+t[5]+"/annotations/"+t[7]
+            cv2.imwrite(name,pred)
+        print("Batch done")
+
+
     def image_analysis(self):
         #Image analysis
         import os
@@ -655,9 +814,8 @@ class Segnet():
         #print(images_data)
         #cv2.imshow('Originali', images_data)
 
-        img = cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src/' + 'test2.png')
+        img = cv2.imread('/home/deepblack/ros_ws/src/COSMOS/src/' + 'test3.png')
         img_prep = []
-        print(img.shape)
         #img = img[:,:,[2,0,1]]
         img = cv2.resize(img, (self.img_cols, self.img_rows))
         img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
@@ -692,15 +850,15 @@ class Segnet():
 
     def live_analysis(self):
         #Live stream video analysis
-        while(True):
+        while not rospy.is_shutdown():
             vid_img_prep = []
-            vid_img = cv2.resize(self.frame, (self.img_rows,self.img_cols))
-            vid_img_prep.append(vid_img.swapaxes(0,2).swapaxes(1,2))
-            vid_img_prep.append(vid_img.swapaxes(0,2).swapaxes(1,2))
+            vid_img = cv2.resize(self.frame, (self.img_cols,self.img_rows))
+            vid_img_prep.append(self.preprocess_img(vid_img).swapaxes(0,2).swapaxes(1,2))
+            vid_img_prep.append(self.preprocess_img(vid_img).swapaxes(0,2).swapaxes(1,2))
             output = self.network.predict_proba(np.array(vid_img_prep)[1:2])
             pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows,self.img_cols)))
-            #cv2.imshow('Prediction', pred)
-            #cv2.imshow('Original', vid_img)
+
+            self.image_pub_raw.publish(self.bridge.cv2_to_imgmsg(vid_img))
             self.image_pub.publish(self.bridge.cv2_to_imgmsg(pred))
             #cv2.waitKey(1)
             #if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -741,13 +899,14 @@ if __name__ == '__main__':
     sn = Segnet()
     rospy.init_node('segmentation_network_node_run', anonymous=True)
 
-    #rospy.Subscriber("/center_camera/image_color/raw", Image, sn.image_callback)
+    rospy.Subscriber("/camera/image_raw", Image, sn.image_callback)
     #rospy.Subscriber("/stereo_camera/left/image_rect_color", Image, sn.image_callback)
 
 
-    sn.create_network()
+    sn.create_segnet()
     #sn.train_network()
     sn.deploy_network()
+    #sn.image_batch()
     sn.image_analysis()
     #sn.live_analysis()
     try:

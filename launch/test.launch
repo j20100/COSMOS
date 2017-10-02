@@ -1,0 +1,58 @@
+<launch>
+
+	<node pkg="rtabmap_ros" type="pointcloud_to_depthimage" name="pointcloud_to_depthimage" output="screen">
+	<remap from="/cloud" to="/velodyne_points"/>
+	<remap from="/camera_info" to="/camera_info"/>
+	<remap from="/image" to="/depth_image"/>
+	<remap from="/image_raw" to="/original_img"/>
+<!--	<param name="fill_holes_size" value="20" />
+	<param name="fill_holes_error" value="0.5"/>
+	<param name="fill_iterations" value="2"/>
+-->
+ 	</node>
+
+	<node pkg="rtabmap_ros" type="pointcloud_to_depthimage" name="pointcloud_to_depthimage_filled" output="screen">
+		<remap from="/cloud" to="/velodyne_points"/>
+		<remap from="/camera_info" to="/camera_info"/>
+		<remap from="/image" to="/depth_image_filled"/>
+		<remap from="/image_raw" to="/original_img_two"/>
+		<param name="fixed_frame_id" value="velodyne"/>
+		<param name="fill_holes_size" value="20" />
+		<param name="fill_holes_error" value="0.5"/>
+		<param name="fill_iterations" value="2"/>
+		<param name="min_depth" value="1"/>
+ 	</node>
+
+	<arg name="pi" value="3.1416" />
+  <arg name="pi/2" value="1.5707963267948966" />
+  <arg name="optical_rotate" value="0 0 0 -$(arg pi/2) 0 -$(arg pi/2)" />
+	<node pkg="tf" type="static_transform_publisher" name="camera_base_link"
+	        args="$(arg optical_rotate) velodyne camera 100" />
+
+	<node pkg="nodelet" type="nodelet" name="points_xyzrgb" args="standalone rtabmap_ros/point_cloud_xyzrgb">
+     <remap from="rgb/image"         to="/image_seg_ts"/>
+     <remap from="depth/image"       to="/depth_image"/>
+     <remap from="rgb/camera_info"   to="/camera_info"/>
+     <remap from="cloud"             to="voxel_cloud" />
+		 <param name="approx_sync" value="false"/>
+		 <param name="filter_nans" value="true"/>
+	</node>
+
+	<include file="$(find rtabmap_ros)/launch/rtabmap.launch">
+
+	<arg name="rtabmap_args" value="delete_db_on_start -RGBD/CreateOccupancyGrid false --GFTT/QualityLevel 0.001"/>
+	<arg name="frame_id" value="velodyne"/>
+	<arg name="rgb_topic" value="/image_rgb_ts"/>
+	<arg name="camera_info_topic" value="/camera_info"/>
+	<arg name="depth_topic" value="/depth_image_filled"/>
+	<arg name="visual_odometry" value="false"/>
+	<arg name="odom_topic" value="/integrated_to_init"/>
+	<arg name="subscribe_scan_cloud" default="true"/>
+	<arg name="scan_cloud_topic" default="/voxel_cloud"/>
+
+
+	</include>
+
+
+
+</launch>

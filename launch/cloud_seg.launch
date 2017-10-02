@@ -1,0 +1,5 @@
+<launch>
+  <include file="$(find libuvc_camera)/launch/uvc_cam.launch"/>
+  <node name="img_seg" type="segnet.py" pkg="cosmos" output="screen"/>
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find cosmos)/launch/config/cloud_seg.rviz"/>
+</launch>
