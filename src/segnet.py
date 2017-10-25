@@ -43,7 +43,6 @@ K.set_image_data_format("channels_first")
 
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
-import numpy as np
 import matplotlib.pyplot as plt
 from moviepy.editor import VideoFileClip
 from skimage import color, exposure, transform
@@ -87,7 +86,7 @@ class Segnet():
     start = 0
 
     #Model save variables
-    save_model_name= weights_path + 'train5/cityscape_5.hdf5'
+    save_model_name= weights_path + 'train7/cityscape_7.hdf5'
     run_model_name= weights_path + 'train5/cityscape_5.hdf5'
     load_model_name= weights_path + 'train5/cityscape_5.hdf5'
 
@@ -149,48 +148,48 @@ class Segnet():
     #label_colours = np.array([void, Sky, Building, Road, Sidewalk, Fence, Vegetation, Pole, Car, Sign, Pedestrian, Cyclist])
 
     #cityscape dataset
-    road = [128,64,128]
-    sidewalk = [244,35,232]
-    building = [70,70,70]
-    wall = [102,102,156]
-    fence = [190,153,153]
-    pole = [153,153,153]
-    trafficlight = [250, 170,30]
-    trafficsign = [220,220,0]
-    vegetation = [107,142,35]
-    terrain = [152,251,152]
-    sky = [70,130,180]
-    person = [220,20,60]
-    rider = [255,0,0]
-    car = [0,0,142]
-    truck = [0,0,70]
-    bus = [0,60,100]
-    train = [0,80,100]
-    motorcycle = [0,0,230]
-    bicycle = [119,11,32]
-    void = [0,0,0]
+    # road = [128,64,128]
+    # sidewalk = [244,35,232]
+    # building = [70,70,70]
+    # wall = [102,102,156]
+    # fence = [190,153,153]
+    # pole = [153,153,153]
+    # trafficlight = [250, 170,30]
+    # trafficsign = [220,220,0]
+    # vegetation = [107,142,35]
+    # terrain = [152,251,152]
+    # sky = [70,130,180]
+    # person = [220,20,60]
+    # rider = [255,0,0]
+    # car = [0,0,142]
+    # truck = [0,0,70]
+    # bus = [0,60,100]
+    # train = [0,80,100]
+    # motorcycle = [0,0,230]
+    # bicycle = [119,11,32]
+    #void = [0,0,0]
 
     #For annotator
-    # road = [0,0,19]
-    # sidewalk = [0,0,1]
-    # building = [0,0,2]
-    # wall = [0,0,3]
-    # fence = [0,0,4]
-    # pole = [0,0,5]
-    # trafficlight = [0,0,6]
-    # trafficsign = [0,0,7]
-    # vegetation = [0,0,8]
-    # terrain = [0,0,9]
-    # sky = [0,0,10]
-    # person = [0,0,11]
-    # rider = [0,0,12]
-    # car = [0,0,13]
-    # truck = [0,0,14]
-    # bus = [0,0,15]
-    # train = [0,0,16]
-    # motorcycle = [0,0,17]
-    # bicycle = [0,0,18]
-    # void = [0,0,0]
+    road = [0,0,0]
+    sidewalk = [0,0,1]
+    building = [0,0,2]
+    wall = [0,0,3]
+    fence = [0,0,4]
+    pole = [0,0,5]
+    trafficlight = [0,0,6]
+    trafficsign = [0,0,7]
+    vegetation = [0,0,8]
+    terrain = [0,0,9]
+    sky = [0,0,10]
+    person = [0,0,11]
+    rider = [0,0,12]
+    car = [0,0,13]
+    truck = [0,0,14]
+    bus = [0,0,15]
+    train = [0,0,16]
+    motorcycle = [0,0,17]
+    bicycle = [0,0,18]
+    void = [0,0,19]
 
     label_colours = np.array([road, sidewalk, building, wall, fence, pole, \
         trafficlight, trafficsign, vegetation, terrain, sky, person, rider, \
@@ -468,27 +467,32 @@ class Segnet():
 
 
     #Prep for segannotator dataset
+
+
     def prep_data_annotator(self):
+
         while 1:
-            with open(self.path_annotator+'test.txt') as f:
-                txt = f.readlines()
-                txt = [line.rstrip() for line in txt]
-                train_data = []
-                train_label = []
-                annot_image = 'none'
+            searchlabel = os.path.join( self.path_annotator , "annotations" , "*.png_corrected_*" )
+            fileslabel = glob.glob(searchlabel)
+            fileslabel.sort()
+
+            train_data = []
+            train_label = []
+
             for i in range(self.batch_size):
-                index= random.randint(0, len(txt)-1)
-                train_data.append(self.resize_input_data(np.rollaxis(cv2.imread(self.path_annotator + 'images/' + txt[index]),2)))
+                index= random.randint(0, len(fileslabel)-1)
+                t = fileslabel[index].split('/')
+                k = t[7].split('.')
+                data="/"+t[1]+"/"+t[2]+"/"+t[3]+"/"+t[4]+"/"+t[5]+"/images/"+k[0]+".png"
+                print(data)
+                print(fileslabel[index])
+                train_data.append(np.rollaxis(self.preprocess_img\
+                    (cv2.imread(data)),2))
+                train_label.append(self.resize_input_binary_label(self.binarylab\
+                    (cv2.imread(fileslabel[index]))))
 
-                directory = self.path_annotator + 'annotations/'
-                test = os.listdir( directory )
-                for item in test:
-                    if item.startswith(txt[index]):
-                        annot_image = item
-                train_label.append(self.resize_input_binary_label(self.binarylab(cv2.imread(self.path_annotator + 'annotations/' + annot_image)[:,:,2])))
-
-            yield(np.array(train_data), np.reshape(np.array(train_label),(self.batch_size,self.data_shape,self.nb_class)))
-            f.close()
+            yield(np.array(train_data) , np.reshape(np.array(train_label),\
+                (self.batch_size,self.data_shape,self.nb_class)))
 
     def get_crop_shape(self, target, refer):
         # width, the 3rd dimension
@@ -644,6 +648,7 @@ class Segnet():
         self.network.add(Reshape((self.nb_class, self.data_shape)))
         self.network.add(Permute((2, 1)))
         self.network.add(Activation('softmax'))
+        self.network.summary()
         from keras.optimizers import SGD, Adam
         #optimizer = SGD(lr=0.01, momentum=0.8, decay=0.1, nesterov=False)
         #optimizer = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
@@ -670,16 +675,16 @@ class Segnet():
         self.network.load_weights(self.load_model_name)
 
         logcb = keras.callbacks.ModelCheckpoint(\
-        "/home/deepblack/ros_ws/src/COSMOS/src/weight/train5/weights.{epoch:02d}-{val_loss:.2f}.hdf5", \
+        "/home/deepblack/ros_ws/src/COSMOS/src/weight/train7/weights.{epoch:02d}-{val_loss:.2f}.hdf5", \
             monitor='val_loss', verbose=0, save_best_only=False, save_weights_only=False, \
             mode='auto', period=1)
 
         #escb = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.1, \
         #    patience=3, verbose=1, mode='auto')
 
-        history = self.network.fit_generator(self.prep_data_cityscape(), \
+        history = self.network.fit_generator(self.prep_data_annotator(), \
         epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, \
-        validation_data=self.prep_val_cityscape(), validation_steps=100, \
+        #validation_data=self.prep_val_cityscape(), validation_steps=100, \
         verbose=1, callbacks=[logcb])
         #, validation_data=self.prep_val_camvid(), validation_steps=10, class_weight=self.class_weighting_camvid)
         #history = network.fit(train_data, train_label, batch_size=batch_size, epochs=epochs, verbose=1, class_weight=class_weighting )
@@ -782,22 +787,24 @@ class Segnet():
         return rgb
 
     def image_batch(self):
-        searchlabel = os.path.join( self.path_annotator , "images" , "*.png" )
+        searchlabel = os.path.join(self.path_annotator , "images" , "*.png" )
         fileslabel = glob.glob(searchlabel)
         fileslabel.sort()
         for i in range(len(fileslabel)):
-            img = cv2.imread(fileslabel[i])
-            img_prep = []
-            #img = img[:,:,[2,0,1]]
-            img = cv2.resize(img, (self.img_cols, self.img_rows))
-            img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
-            img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
-            output = self.network.predict_proba(np.array(img_prep)[1:2])
-            pred = self.visualize(np.argmax(output[0],axis=1).reshape((self.img_rows, self.img_cols)))
             t = fileslabel[i].split('/')
-
             name="/"+t[1]+"/"+t[2]+"/"+t[3]+"/"+t[4]+"/"+t[5]+"/annotations/"+t[7]
-            cv2.imwrite(name,pred)
+            searchannot = name
+            fileannot = glob.glob(searchannot)
+            if fileannot:
+                img = cv2.imread(fileslabel[i])
+                img_prep = []
+                #img = img[:,:,[2,0,1]]
+                img = cv2.resize(img, (self.img_cols, self.img_rows))
+                img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
+                img_prep.append(img.swapaxes(0,2).swapaxes(1,2))
+                output = self.network.predict_proba(np.array(img_prep)[1:2])
+                pred = self.visualize_annot(np.argmax(output[0],axis=1).reshape((self.img_rows, self.img_cols)))
+                cv2.imwrite(name,pred)
         print("Batch done")
 
 
@@ -904,10 +911,10 @@ if __name__ == '__main__':
 
 
     sn.create_segnet()
-    #sn.train_network()
-    sn.deploy_network()
+    sn.train_network()
+    #sn.deploy_network()
     #sn.image_batch()
-    sn.image_analysis()
+    #sn.image_analysis()
     #sn.live_analysis()
     try:
         rospy.spin()
