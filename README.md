@@ -1,1 +1,2 @@
-# SeMaROS
+# COSMOS
+
