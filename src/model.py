@@ -2220,7 +2220,7 @@ class MaskRCNN():
         windows = np.stack(windows)
         return molded_images, image_metas, windows
 
-    def unmold_detections(self, detections, mrcnn_mask, image_shape, window, nb_interations):
+    def unmold_detections(self, detections, mrcnn_mask, image_shape, window, nb_interations, threshold):
         """Reformats the detections of one image from the format of the neural
         network output to a format suitable for use in the rest of the
         application.
@@ -2277,14 +2277,14 @@ class MaskRCNN():
         full_masks = []
         for i in range(N):
             # Convert neural network mask to full size mask
-            full_mask = utils.unmold_mask(masks[i], boxes[i], image_shape, nb_interations)
+            full_mask = utils.unmold_mask(masks[i], boxes[i], image_shape, nb_interations, threshold)
             full_masks.append(full_mask)
         full_masks = np.stack(full_masks, axis=-1)\
             if full_masks else np.empty((0,) + masks.shape[1:3])
 
         return boxes, class_ids, scores, full_masks
 
-    def detect(self, images, nb_interations, verbose=0):
+    def detect(self, images, nb_interations, threshold, verbose=0):
         """Runs the detection pipeline.
 
         images: List of images, potentially of different sizes.
@@ -2317,7 +2317,7 @@ class MaskRCNN():
         for i, image in enumerate(images):
             final_rois, final_class_ids, final_scores, final_masks =\
                 self.unmold_detections(detections[i], mrcnn_mask[i],
-                                       image.shape, windows[i], nb_interations)
+                                       image.shape, windows[i], nb_interations, threshold)
             results.append({
                 "rois": final_rois,
                 "class_ids": final_class_ids,

@@ -247,7 +247,7 @@ def cv_depth_img_masked(image, boxes, masks, class_ids, class_names,
         masked_image = apply_depth_image_masking(masked_image, mask, color)
 
 
-    masked_image.astype(np.uint8)
+    masked_image.astype(np.uint16)
     return masked_image
 
 def cv_display_instances(image, boxes, masks, class_ids, class_names,

@@ -75,6 +75,7 @@ MODEL_DIR = os.path.join(ROOT_DIR, "logs")
 # Download this file and place in the root of your
 # project (See README file for details)
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
+path_tum = os.path.join(ROOT_DIR, "tum_dataset/")
 
 # Directory of images to run detection on
 IMAGE_DIR = os.path.join(ROOT_DIR, "images")
@@ -100,7 +101,7 @@ class MaskRcnn():
 
         # Load weights trained on MS-COCO
         self.model.load_weights(COCO_MODEL_PATH, by_name=True)
-
+        path_tum = os.path.join(ROOT_DIR, "tum_dataset/")
         self.frame = []
         self.depth_frame = []
         self.msg_header = std_msgs.msg.Header()
@@ -197,13 +198,10 @@ class MaskRcnn():
         #TODO Time comsuming function
         x = np.zeros([masks.shape[0], masks.shape[1], class_ids.shape[0]])
         for l in range(class_ids.shape[0]):
-            for i in range(masks.shape[0]):
-                for j in range(masks.shape[1]):
-                    #3 dim labels in cityscape dataset
-                    if class_ids[l] == 1:
-                        x[i, j, l] = masks[i][j][l]
-                    else:
-                        x[i, j, l] = 0
+            if class_ids[l] == 1:
+                x[:, :, l] = masks[:, :, l]
+            else:
+                x[:, :, l] = 0
 
         return x
 
@@ -232,8 +230,9 @@ class MaskRcnn():
 
                 #Dilatation effect on masks for better feature masking
                 dilatation = 20
+                threshold = 0.3
 
-                results = self.model.detect([current_frame], dilatation, verbose=1)
+                results = self.model.detect([current_frame], dilatation, threshold, verbose=1)
                 r = results[0]
 
                 #selected_class = self.class_selection(r['masks'], r['class_ids'])
@@ -256,6 +255,71 @@ class MaskRcnn():
                 print("Publishing img")
             else:
                 print("Waiting for frame")
+
+    def tum_dataset_analysis(self):
+        #searchlabel = os.path.join(path_tum , "rgb" , "*.png" )
+        #fileslabel = glob.glob(searchlabel)
+        #fileslabel.sort()
+
+        searchanot = os.path.join(path_tum , "depth" , "*.png" )
+        filesanot = glob.glob(searchanot)
+        filesanot.sort()
+
+        dilatation = 20
+        threshold = 0.3
+
+        for i in range(len(filesanot)):
+            print(filesanot[i])
+
+            t = filesanot[i].split('/')
+            k = t[9].split(".")
+
+            j ="/"+t[1]+"/"+t[2]+"/"+t[3]+"/"+t[4]+"/"+t[5]+"/"+t[6]+"/"+t[7]+"/rgb/"
+
+
+            prefixed = [filename for filename in os.listdir(j) if filename.startswith(k[0]+"."+k[1][:2])]
+
+
+            #print(k[0]+"."+k[1][:2])
+            #print(prefixed)
+
+            if prefixed == []:
+                print("Didnt find close match")
+                y = int(k[1][:2])-1
+                prefixed = [filename for filename in os.listdir(j) if filename.startswith(k[0]+"."+str(y))]
+
+            if prefixed == []:
+                y = int(k[1][:2])+1
+                prefixed = [filename for filename in os.listdir(j) if filename.startswith(k[0]+"."+str(y))]
+                print("Didnt find close match")
+
+
+            if prefixed == []:
+                print("Didnt find match")
+                break
+                #continue
+
+            fileslabel = glob.glob(j+prefixed[0])
+            #print(filesanot)
+
+            img = cv2.imread(fileslabel[0])
+            #depth_img = cv2.cvtColor(cv2.imread(filesanot[i]), cv2.COLOR_BGR2GRAY)
+            depth_img = cv2.imread(filesanot[i], -1)
+            depth_img = depth_img.astype(np.uint16)
+
+            results = self.model.detect([img], dilatation, threshold, verbose=1)
+            r = results[0]
+
+            selected_class = self.class_selection(r['masks'], r['class_ids'])
+            #selected_class = r['masks']
+
+            result_image = visualize_cv.cv_img_masked(img, r['rois'], selected_class, r['class_ids'],
+                                                     self.class_names, r['scores'])
+            result_depth_image = visualize_cv.cv_depth_img_masked(depth_img, r['rois'], selected_class, r['class_ids'],
+                                                     self.class_names, r['scores'])
+
+            cv2.imwrite(filesanot[i],result_depth_image)
+        print("Batch done")
 
     def image_callback(self, msg):
 
@@ -1133,7 +1197,8 @@ if __name__ == '__main__':
     #rospy.Subscriber("/stereo_camera/left/image_rect_color", Image, sn.image_callback)
 
     #mr.live_analysis()
-    mr.live_depth_analysis()
+    #mr.live_depth_analysis()
+    mr.tum_dataset_analysis()
     #sn.create_segnet()
     #sn.train_network()
     #sn.deploy_network()
