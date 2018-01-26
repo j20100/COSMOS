@@ -6,7 +6,8 @@ Copyright (c) 2017 Matterport, Inc.
 Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
-
+from __future__ import division
+#Python 2 fix division
 import sys
 import os
 import math
@@ -19,6 +20,9 @@ import skimage.io
 from scipy import ndimage
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+
+
+
 
 ############################################################
 #  Bounding Boxes
@@ -394,8 +398,9 @@ def resize_image(image, min_dim=None, max_dim=None, padding=False):
             scale = max_dim / image_max
     # Resize image and mask
     if scale != 1:
+        #JV Fix python2 division
         image = scipy.misc.imresize(
-            image, (round(h * scale), round(w * scale)))
+            image, (int(round(h * scale)), int(round(w * scale))))
     # Need padding?
     if padding:
         # Get new height and width
@@ -407,6 +412,7 @@ def resize_image(image, min_dim=None, max_dim=None, padding=False):
         padding = [(top_pad, bottom_pad), (left_pad, right_pad), (0, 0)]
         image = np.pad(image, padding, mode='constant', constant_values=0)
         window = (top_pad, left_pad, h + top_pad, w + left_pad)
+
     return image, window, scale, padding
 
 
@@ -477,7 +483,7 @@ def unmold_mask(mask, bbox, image_shape, nb_interations, threshold):
     y1, x1, y2, x2 = bbox
     mask = scipy.misc.imresize(
         mask, (y2 - y1, x2 - x1), interp='bilinear').astype(np.float32) / 255.0
-    
+
     mask = np.where(mask >= threshold, 1, 0).astype(np.uint8)
 
     # Put the mask in the right location.

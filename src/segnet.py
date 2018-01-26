@@ -76,6 +76,7 @@ MODEL_DIR = os.path.join(ROOT_DIR, "logs")
 # project (See README file for details)
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
 path_tum = os.path.join(ROOT_DIR, "tum_dataset/")
+path_kitti = os.path.join(ROOT_DIR, "kitti_dataset/")
 
 # Directory of images to run detection on
 IMAGE_DIR = os.path.join(ROOT_DIR, "images")
@@ -195,10 +196,10 @@ class MaskRcnn():
                 print("Waiting for frame")
 
     def class_selection(self, masks, class_ids):
-        #TODO Time comsuming function
         x = np.zeros([masks.shape[0], masks.shape[1], class_ids.shape[0]])
         for l in range(class_ids.shape[0]):
-            if class_ids[l] == 1:
+            if class_ids[l] == 2 or class_ids[l] == 3 or class_ids[l] == 4 or class_ids[l] == 6 or class_ids[l] == 8 or class_ids[l] == 1:
+            #if class_ids[l] == 2:
                 x[:, :, l] = masks[:, :, l]
             else:
                 x[:, :, l] = 0
@@ -257,11 +258,11 @@ class MaskRcnn():
                 print("Waiting for frame")
 
     def tum_dataset_analysis(self):
-        #searchlabel = os.path.join(path_tum , "rgb" , "*.png" )
-        #fileslabel = glob.glob(searchlabel)
-        #fileslabel.sort()
+        searchlabel = os.path.join(path_tum , "rgb_sync" , "*.png" )
+        fileslabel = glob.glob(searchlabel)
+        fileslabel.sort()
 
-        searchanot = os.path.join(path_tum , "depth" , "*.png" )
+        searchanot = os.path.join(path_tum , "depth_sync" , "*.png" )
         filesanot = glob.glob(searchanot)
         filesanot.sort()
 
@@ -269,40 +270,8 @@ class MaskRcnn():
         threshold = 0.3
 
         for i in range(len(filesanot)):
-            print(filesanot[i])
 
-            t = filesanot[i].split('/')
-            k = t[9].split(".")
-
-            j ="/"+t[1]+"/"+t[2]+"/"+t[3]+"/"+t[4]+"/"+t[5]+"/"+t[6]+"/"+t[7]+"/rgb/"
-
-
-            prefixed = [filename for filename in os.listdir(j) if filename.startswith(k[0]+"."+k[1][:2])]
-
-
-            #print(k[0]+"."+k[1][:2])
-            #print(prefixed)
-
-            if prefixed == []:
-                print("Didnt find close match")
-                y = int(k[1][:2])-1
-                prefixed = [filename for filename in os.listdir(j) if filename.startswith(k[0]+"."+str(y))]
-
-            if prefixed == []:
-                y = int(k[1][:2])+1
-                prefixed = [filename for filename in os.listdir(j) if filename.startswith(k[0]+"."+str(y))]
-                print("Didnt find close match")
-
-
-            if prefixed == []:
-                print("Didnt find match")
-                break
-                #continue
-
-            fileslabel = glob.glob(j+prefixed[0])
-            #print(filesanot)
-
-            img = cv2.imread(fileslabel[0])
+            img = cv2.imread(fileslabel[i])
             #depth_img = cv2.cvtColor(cv2.imread(filesanot[i]), cv2.COLOR_BGR2GRAY)
             depth_img = cv2.imread(filesanot[i], -1)
             depth_img = depth_img.astype(np.uint16)
@@ -320,6 +289,36 @@ class MaskRcnn():
 
             cv2.imwrite(filesanot[i],result_depth_image)
         print("Batch done")
+
+
+    def kitti_dataset_analysis(self):
+        searchlabel = os.path.join(path_kitti , "image_*" , "*.png" )
+        fileslabel = glob.glob(searchlabel)
+        fileslabel.sort()
+
+        dilatation = 20
+        threshold = 0.1
+
+        for i in range(len(fileslabel)):
+
+            img = cv2.imread(fileslabel[i])
+
+            img = cv2.imread(fileslabel[i], -1)
+            img = img.astype(np.uint16)
+
+            results = self.model.detect([img], dilatation, threshold, verbose=1)
+            r = results[0]
+
+            selected_class = self.class_selection(r['masks'], r['class_ids'])
+            #selected_class = r['masks']
+
+            result_image = visualize_cv.cv_img_masked(img, r['rois'], selected_class, r['class_ids'],
+                                                     self.class_names, r['scores'])
+
+
+            cv2.imwrite(fileslabel[i],result_image.astype('uint8'))
+        print("Batch done")
+
 
     def image_callback(self, msg):
 
@@ -1198,7 +1197,8 @@ if __name__ == '__main__':
 
     #mr.live_analysis()
     #mr.live_depth_analysis()
-    mr.tum_dataset_analysis()
+    #mr.tum_dataset_analysis()
+    mr.kitti_dataset_analysis()
     #sn.create_segnet()
     #sn.train_network()
     #sn.deploy_network()
