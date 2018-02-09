@@ -10,9 +10,9 @@ project(cosmos)
 find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
-  pcl_conversions
-  pcl_ros
-  roscpp
+  ##pcl_conversions
+  ##pcl_ros
+  ##roscpp
   cv_bridge
   sensor_msgs
   message_generation
@@ -203,5 +203,4 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_executable(cosmos src/seg_3d.cpp)
-target_link_libraries(cosmos ${catkin_LIBRARIES})
+#target_link_libraries(cosmos ${catkin_LIBRARIES})

@@ -1,0 +1,43 @@
+<launch>
+
+    <param name="robot_description" command="$(find xacro)/xacro '$(find cosmos)/launch/urdf/rack.xacro'"/>
+    <node name="static_tf_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="false" output="screen"/>
+
+    <!-- Disparity to depth -->
+    <node pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc"/>
+
+    <node pkg="nodelet" type="nodelet" name="disparity2depth" args="standalone rtabmap_ros/disparity_to_depth"/>
+
+
+    <group ns="rtabmap">
+
+        <!-- Odometry -->
+        <node pkg="rtabmap_ros" type="rgbd_odometry" name="rgbd_odometry" output="screen">
+          <remap from="rgb/image"       to="/left/image_rect_color"/>
+          <remap from="depth/image"     to="/depth"/>
+          <remap from="rgb/camera_info" to="/left/camera_info"/>
+
+          <param name="frame_id" type="string" value="base_link"/>
+        </node>
+
+        <node name="rtabmap" pkg="rtabmap_ros" type="rtabmap" output="screen" args="--delete_db_on_start">
+              <param name="frame_id" type="string" value="base_link"/>
+              <param name="subscribe_depth" type="bool" value="true"/>
+
+              <remap from="odom" to="odom"/>
+              <remap from="rgb/image" to="/left/image_rect_color"/>
+              <remap from="depth/image" to="/depth"/>
+              <remap from="rgb/camera_info" to="/left/camera_info"/>
+
+              <param name="queue_size" type="int" value="10"/>
+
+              <!-- RTAB-Map's parameters -->
+              <param name="RGBD/AngularUpdate" type="string" value="0.01"/>
+              <param name="RGBD/LinearUpdate" type="string" value="0.01"/>
+              <param name="Rtabmap/TimeThr" type="string" value="700"/>
+              <param name="Mem/RehearsalSimilarity" type="string" value="0.45"/>
+              <param name="RGBD/OptimizeFromGraphEnd" type="string" value="true"/>
+        </node>
+
+      </group>
+</launch>

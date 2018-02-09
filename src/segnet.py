@@ -305,6 +305,7 @@ class MaskRcnn():
 
             img = cv2.imread(fileslabel[i], -1)
             img = img.astype(np.uint16)
+            img = cv2.resize(img, (1024, 320))
 
             results = self.model.detect([img], dilatation, threshold, verbose=1)
             r = results[0]
@@ -1196,9 +1197,9 @@ if __name__ == '__main__':
     #rospy.Subscriber("/stereo_camera/left/image_rect_color", Image, sn.image_callback)
 
     #mr.live_analysis()
-    #mr.live_depth_analysis()
+    mr.live_depth_analysis()
     #mr.tum_dataset_analysis()
-    mr.kitti_dataset_analysis()
+    #mr.kitti_dataset_analysis()
     #sn.create_segnet()
     #sn.train_network()
     #sn.deploy_network()

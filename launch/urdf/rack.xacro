@@ -1,0 +1,133 @@
+<robot name="rack">
+
+    <link name="base_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="odom">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="imu_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="camera">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="velodyne">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.01 0.01 0.01"/>
+        </geometry>
+      </collision>
+    </link>
+
+      <joint name="imu_joint" type="fixed">
+        <origin xyz="-0.06 0.05 0" rpy="0 0 0"/>
+        <parent link="base_link"/>
+        <child link="imu_link"/>
+      </joint>
+
+      <joint name="velodyne_joint" type="fixed">
+        <origin xyz="0 0 0.22" rpy="0 0 0"/>
+        <parent link="base_link"/>
+        <child link="velodyne"/>
+      </joint>
+
+      <joint name="gps_joint" type="fixed">
+        <origin xyz="-0.43 0.0 0.04" rpy="0 0 0.0"/>
+        <parent link="base_link"/>
+        <child link="odom"/>
+      </joint>
+
+
+      <joint name="camera_joint" type="fixed">
+        <origin xyz="0.53 0 0" rpy="-1.5707963267948966 0 -1.5707963267948966"/>
+        <parent link="base_link"/>
+        <child link="camera"/>
+      </joint>
+
+</robot>
