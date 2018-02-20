@@ -6,7 +6,7 @@ Copyright (c) 2017 Matterport, Inc.
 Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
-from __future__ import division
+#from __future__ import division
 #Python 2 fix division
 import sys
 import os
@@ -400,7 +400,7 @@ def resize_image(image, min_dim=None, max_dim=None, padding=False):
     if scale != 1:
         #JV Fix python2 division
         image = scipy.misc.imresize(
-            image, (int(round(h * scale)), int(round(w * scale))))
+            image, (round(h * scale), round(w * scale)))
     # Need padding?
     if padding:
         # Get new height and width
