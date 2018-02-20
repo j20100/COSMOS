@@ -44,8 +44,6 @@ from cv_bridge import CvBridge, CvBridgeError
 import matplotlib.pyplot as plt
 from moviepy.editor import VideoFileClip
 from skimage import color, exposure, transform
-
-
 ###ADD mask rcnn
 import os
 import sys
@@ -62,11 +60,13 @@ import model as modellib
 import visualize_cv
 import std_msgs.msg
 
+from moviepy.video.VideoClip import VideoClip
+
 np.set_printoptions(threshold=np.nan)
 
 # Root directory of the project
 #ROOT_DIR = os.getcwd()
-ROOT_DIR = "/home/jvincent/ros_ws/src/COSMOS/src/"
+ROOT_DIR = "/home/vinj2104/ros_ws/src/COSMOS/src/"
 
 # Directory to save logs and trained model
 MODEL_DIR = os.path.join(ROOT_DIR, "logs")
@@ -94,8 +94,8 @@ class MaskRcnn():
         self.config = InferenceConfig()
         self.config.display()
 
-        self.image_pub = rospy.Publisher("image_seg_maskrcnn", Image,queue_size=1)
-        self.depth_image_pub = rospy.Publisher("depth_image_seg_maskrcnn", Image,queue_size=1)
+        #self.image_pub = rospy.Publisher("/camera/image_seg_maskrcnn", Image,queue_size=1)
+        self.depth_image_pub = rospy.Publisher("/camera/depth_registered/masked_image_raw", Image,queue_size=1)
 
         # Create model object in inference mode.
         self.model = modellib.MaskRCNN(mode="inference", model_dir=MODEL_DIR, config=self.config)
@@ -126,7 +126,7 @@ class MaskRcnn():
                'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
                'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
                'teddy bear', 'hair drier', 'toothbrush']
-
+        #1,38,39,40,53
         self.bridge = CvBridge()
 
         #image = skimage.io.imread("/home/pmcrivet/catkin_ws/src/Mask_RCNN/script/images/frame0057.jpg")
@@ -172,7 +172,7 @@ class MaskRcnn():
 
                 results = self.model.detect([current_frame], verbose=1)
                 r = results[0]
-                result_image = visualize_cv.cv_img_masked(current_frame, r['rois'], r['masks'], r['class_ids'],
+                result_image = visualize_cv.display_detections(current_frame, r['rois'], r['masks'], r['class_ids'],
                                                          self.class_names, r['scores'])
 
                 cv2.namedWindow('result_image', cv2.WINDOW_NORMAL)
@@ -198,7 +198,7 @@ class MaskRcnn():
     def class_selection(self, masks, class_ids):
         x = np.zeros([masks.shape[0], masks.shape[1], class_ids.shape[0]])
         for l in range(class_ids.shape[0]):
-            if class_ids[l] == 2 or class_ids[l] == 3 or class_ids[l] == 4 or class_ids[l] == 6 or class_ids[l] == 8 or class_ids[l] == 1:
+            if (class_ids[l] == 1 or class_ids[l] == 40 or class_ids[l] == 41 or class_ids[l] == 42 or class_ids[l] == 57):
             #if class_ids[l] == 2:
                 x[:, :, l] = masks[:, :, l]
             else:
@@ -230,7 +230,7 @@ class MaskRcnn():
                 #print image.dtype
 
                 #Dilatation effect on masks for better feature masking
-                dilatation = 20
+                dilatation = 10
                 threshold = 0.3
 
                 results = self.model.detect([current_frame], dilatation, threshold, verbose=1)
@@ -239,21 +239,21 @@ class MaskRcnn():
                 #selected_class = self.class_selection(r['masks'], r['class_ids'])
                 selected_class = r['masks']
 
-
-                result_image = visualize_cv.cv_img_masked(current_frame, r['rois'], selected_class, r['class_ids'],
-                                                         self.class_names, r['scores'])
+                #Comment for faster code run
+                #result_image = visualize_cv.cv_img_masked(current_frame, r['rois'], selected_class, r['class_ids'],
+                #                                         self.class_names, r['scores'])
                 result_depth_image = visualize_cv.cv_depth_img_masked(current_depth_frame, r['rois'], selected_class, r['class_ids'],
                                                          self.class_names, r['scores'])
 
                 DITS = Image()
-                ITS = Image()
+                #ITS = Image()
                 DITS = self.bridge.cv2_to_imgmsg(result_depth_image,'16UC1')
-                ITS = self.bridge.cv2_to_imgmsg(result_image,'bgr8')
+                #ITS = self.bridge.cv2_to_imgmsg(result_image,'bgr8')
                 DITS.header = self.depth_msg_header
-                ITS.header = self.msg_header
-                self.image_pub.publish(ITS)
+                #ITS.header = self.msg_header
+                #self.image_pub.publish(ITS)
                 self.depth_image_pub.publish(DITS)
-                print("Publishing img")
+                #print("Publishing img")
             else:
                 print("Waiting for frame")
 
@@ -267,7 +267,7 @@ class MaskRcnn():
         filesanot.sort()
 
         dilatation = 20
-        threshold = 0.3
+        threshold = 0.1
 
         for i in range(len(filesanot)):
 
@@ -279,14 +279,13 @@ class MaskRcnn():
             results = self.model.detect([img], dilatation, threshold, verbose=1)
             r = results[0]
 
-            selected_class = self.class_selection(r['masks'], r['class_ids'])
-            #selected_class = r['masks']
+            #selected_class = self.class_selection(r['masks'], r['class_ids'])
+            selected_class = r['masks']
 
-            result_image = visualize_cv.cv_img_masked(img, r['rois'], selected_class, r['class_ids'],
-                                                     self.class_names, r['scores'])
-            result_depth_image = visualize_cv.cv_depth_img_masked(depth_img, r['rois'], selected_class, r['class_ids'],
-                                                     self.class_names, r['scores'])
-
+            result_image = visualize_cv.display_detections(img, r['rois'], selected_class, r['class_ids'], self.class_names, r['scores'])
+            #result_depth_image = visualize_cv.cv_depth_img_masked(depth_img, r['rois'], selected_class, r['class_ids'],
+            #                                         self.class_names, r['scores'])
+            #cv2.imwrite(fileslabel[i],result_image)
             cv2.imwrite(filesanot[i],result_depth_image)
         print("Batch done")
 
@@ -320,6 +319,25 @@ class MaskRcnn():
             cv2.imwrite(fileslabel[i],result_image.astype('uint8'))
         print("Batch done")
 
+    def process_image(self, image):
+        dilatation = 1
+        threshold = 0.1
+        results = self.model.detect([image], dilatation, threshold, verbose=1)
+        r = results[0]
+        selected_class = r['masks']
+        result_image = visualize_cv.cv_img_masked(image, r['rois'], selected_class, r['class_ids'],
+                                                 self.class_names, r['scores'])
+        return result_image
+
+    def invert_red_blue(self, image):
+        return image[:,:,[2,1,0]]
+
+    def video_analysis(self):
+        #Video playback analysis
+        video = VideoFileClip("1.avi")
+        video = video.fl_image(mr.invert_red_blue)
+        pred_video = video.fl_image(mr.process_image)
+        pred_video.write_videofile('pred_video.avi', codec='rawvideo', audio=False)
 
     def image_callback(self, msg):
 
@@ -1186,20 +1204,21 @@ class UnPooling2D(Layer):
 
 if __name__ == '__main__':
     arg = sys.argv
-
-    sn = Segnet()
+    sys.stdout = open(os.devnull, 'w')
+    #sn = Segnet()
     mr = MaskRcnn()
     rospy.init_node('segmentation_network_node_run', anonymous=True)
 
-    rospy.Subscriber("/camera/rgb/image_color", Image, mr.image_callback)
+    rospy.Subscriber("/camera/rgb/image_rect_color", Image, mr.image_callback)
     rospy.Subscriber("/camera/depth_registered/image_raw", Image, mr.depth_image_callback)
 
     #rospy.Subscriber("/stereo_camera/left/image_rect_color", Image, sn.image_callback)
 
     #mr.live_analysis()
-    mr.live_depth_analysis()
-    #mr.tum_dataset_analysis()
+    #mr.live_depth_analysis()
+    mr.tum_dataset_analysis()
     #mr.kitti_dataset_analysis()
+    #mr.video_analysis()
     #sn.create_segnet()
     #sn.train_network()
     #sn.deploy_network()
