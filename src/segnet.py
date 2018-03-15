@@ -279,12 +279,12 @@ class MaskRcnn():
             results = self.model.detect([img], dilatation, threshold, verbose=1)
             r = results[0]
 
-            #selected_class = self.class_selection(r['masks'], r['class_ids'])
-            selected_class = r['masks']
+            selected_class = self.class_selection(r['masks'], r['class_ids'])
+            #selected_class = r['masks']
 
-            result_image = visualize_cv.display_detections(img, r['rois'], selected_class, r['class_ids'], self.class_names, r['scores'])
-            #result_depth_image = visualize_cv.cv_depth_img_masked(depth_img, r['rois'], selected_class, r['class_ids'],
-            #                                         self.class_names, r['scores'])
+            #result_image = visualize_cv.display_detections(img, r['rois'], selected_class, r['class_ids'], self.class_names, r['scores'])
+            result_depth_image = visualize_cv.cv_depth_img_masked(depth_img, r['rois'], selected_class, r['class_ids'],
+                                                     self.class_names, r['scores'])
             #cv2.imwrite(fileslabel[i],result_image)
             cv2.imwrite(filesanot[i],result_depth_image)
         print("Batch done")
@@ -1204,7 +1204,7 @@ class UnPooling2D(Layer):
 
 if __name__ == '__main__':
     arg = sys.argv
-    sys.stdout = open(os.devnull, 'w')
+    #sys.stdout = open(os.devnull, 'w')
     #sn = Segnet()
     mr = MaskRcnn()
     rospy.init_node('segmentation_network_node_run', anonymous=True)
