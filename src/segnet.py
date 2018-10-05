@@ -19,7 +19,6 @@ import pylab as pl
 import matplotlib.cm as cm
 import itertools
 import numpy as np
-import theano.tensor as T
 import random
 import scipy.io as sio
 import glob
@@ -42,7 +41,6 @@ K.set_image_dim_ordering('tf')
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import matplotlib.pyplot as plt
-from moviepy.editor import VideoFileClip
 from skimage import color, exposure, transform
 ###ADD mask rcnn
 import os
@@ -60,13 +58,12 @@ import model as modellib
 import visualize_cv
 import std_msgs.msg
 
-from moviepy.video.VideoClip import VideoClip
 
 np.set_printoptions(threshold=np.nan)
 
 # Root directory of the project
 #ROOT_DIR = os.getcwd()
-ROOT_DIR = "/home/vinj2104/ros_ws/src/COSMOS/src/"
+ROOT_DIR = "/home/jonathan/ros_ws/src/COSMOS/src/"
 
 # Directory to save logs and trained model
 MODEL_DIR = os.path.join(ROOT_DIR, "logs")
@@ -1215,8 +1212,8 @@ if __name__ == '__main__':
     #rospy.Subscriber("/stereo_camera/left/image_rect_color", Image, sn.image_callback)
 
     #mr.live_analysis()
-    #mr.live_depth_analysis()
-    mr.tum_dataset_analysis()
+    mr.live_depth_analysis()
+    #mr.tum_dataset_analysis()
     #mr.kitti_dataset_analysis()
     #mr.video_analysis()
     #sn.create_segnet()

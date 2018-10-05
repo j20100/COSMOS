@@ -57,7 +57,7 @@
   <arg name="rgb_topic"               default="/image_seg_maskrcnn" />
   <!--<arg name="depth_topic"             default="/camera/depth_registered/image_raw" />
   <arg name="depth_topic"             default="/camera/depth_registered/image_raw" />-->
-  <arg name="depth_topic"             default="/depth_image_seg_maskrcnn" />
+  <arg name="depth_topic"             default="/masked_image_raw" />
   <arg name="camera_info_topic"       default="/camera/rgb/camera_info" />
 
   <!-- stereo related topics -->
